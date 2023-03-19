@@ -3,11 +3,7 @@ import collections
 import mido
 
 
-# TODO:
-# - Add pedal support for midi.
-
-
-class PianoRoll():
+class PianoRoll:
     """Container for piano-roll objects, includes data and meta-data.
 
     Args:
@@ -21,7 +17,7 @@ class PianoRoll():
         self.meta_data = meta_data
 
     def to_midi(self):
-        """Inplace version of pianoroll.to_midi().
+        """Inplace version of pianoroll_to_midi.
 
         Returns:
             mido.MidiFile: MidiFile parsed from self.
@@ -34,8 +30,9 @@ class PianoRoll():
         Returns:
             dict: PianoRoll as dictionary
         """
-        return {'roll': self.roll, 'metadata': self.metadata}
+        return {"roll": self.roll, "metadata": self.meta_data}
 
+    # Needed?
     @classmethod
     def from_midi(cls, mid: mido.MidiFile, div: int):
         """Inplace version of midi_to_pianoroll.
@@ -63,19 +60,25 @@ def pianoroll_to_midi(piano_roll: PianoRoll):
     def _turn_on(track: mido.MidiTrack, notes: list):
         """Adds all notes as note_on events to track."""
         for note in notes:
-            track.append(mido.Message('note_on', channel=0,
-                         note=note, velocity=100, time=0))
+            track.append(
+                mido.Message(
+                    "note_on", channel=0, note=note, velocity=100, time=0
+                )
+            )
             on_notes.append(note)
 
     def _turn_off(track: mido.MidiTrack, notes: list):
         """Adds notes as note_off events to track."""
         for note in notes:
-            track.append(mido.Message('note_off', channel=0,
-                         note=note, velocity=100, time=0))
+            track.append(
+                mido.Message(
+                    "note_off", channel=0, note=note, velocity=100, time=0
+                )
+            )
             on_notes.remove(note)
 
-    ticks_per_step = piano_roll.meta_data['ticks_per_step']
-    div = piano_roll.meta_data['div']
+    ticks_per_step = piano_roll.meta_data["ticks_per_step"]
+    div = piano_roll.meta_data["div"]
 
     mid = mido.MidiFile(type=1)
     mid.ticks_per_beat = div * ticks_per_step
@@ -87,16 +90,17 @@ def pianoroll_to_midi(piano_roll: PianoRoll):
 
     # Add meta events to meta_track
     meta_track.append(mido.Message("program_change", program=0, time=0))
-    piano_roll.meta_data['meta_events'].sort(key=lambda v: v['time'])
+    piano_roll.meta_data["meta_events"].sort(key=lambda v: v["time"])
     prev_time = 0
-    for meta_event in piano_roll.meta_data['meta_events']:
+    for meta_event in piano_roll.meta_data["meta_events"]:
         meta_track.append(
-            mido.MetaMessage(type=meta_event["type"],
-                             time=(meta_event["time"] - prev_time)*(
-                                 ticks_per_step),
-                             **meta_event["data"])
+            mido.MetaMessage(
+                type=meta_event["type"],
+                time=(meta_event["time"] - prev_time) * (ticks_per_step),
+                **meta_event["data"]
+            )
         )
-        prev_time = meta_event['time']
+        prev_time = meta_event["time"]
 
     # Add note events to track
     delta_t = 0
@@ -114,11 +118,12 @@ def pianoroll_to_midi(piano_roll: PianoRoll):
             track[ind].time += delta_t
             delta_t = ticks_per_step
 
-    track.append(mido.MetaMessage('end_of_track', time=0))
+    track.append(mido.MetaMessage("end_of_track", time=0))
 
     return mid
 
 
+# TODO: Add pedal support (control_change, control = 64)
 def midi_to_pianoroll(mid: mido.MidiFile, div: int):
     """Parses a mido.MidiFile object into a PianoRoll object.
 
@@ -152,40 +157,39 @@ def midi_to_pianoroll(mid: mido.MidiFile, div: int):
             for event in track:
                 if event.type == "set_tempo":
                     meta_event = {}
-                    meta_event['type'] = "set_tempo"
-                    meta_event['time'] = event.time // ticks_per_step
-                    meta_event['data'] = {"tempo": event.tempo}
+                    meta_event["type"] = "set_tempo"
+                    meta_event["time"] = event.time // ticks_per_step
+                    meta_event["data"] = {"tempo": event.tempo}
                 elif event.type == "key_signature":
                     meta_event = {}
-                    meta_event['type'] = "key_signature"
-                    meta_event['time'] = event.time // ticks_per_step
-                    meta_event['data'] = {"key": event.key}
+                    meta_event["type"] = "key_signature"
+                    meta_event["time"] = event.time // ticks_per_step
+                    meta_event["data"] = {"key": event.key}
                 else:
                     continue
 
                 # Check if meta event is unique
                 occurred = False
                 for event in meta_events:
-                    if meta_event['type'] == event['type'] and (
-                        meta_event['time'] == event['time'] and (
-                            meta_event['data'] == event['data']
-                        )
+                    if meta_event["type"] == event["type"] and (
+                        meta_event["time"] == event["time"]
+                        and (meta_event["data"] == event["data"])
                     ):
                         occurred = True
 
                 if occurred is False:
                     meta_events.append(meta_event)
 
-        meta_data['meta_events'] = meta_events
+        meta_data["meta_events"] = meta_events
 
         return meta_data
 
     def _get_notes(track: mido.MidiTrack):
         """Calculates and returns the notes present in the input.
 
-        Inspired by code found at in in pretty_midi/pretty_midi.py. Note
-        that event.time in track must be in absolute units in order for
-        this function to work correctly.
+        Inspired by code found at in in pretty_midi/pretty_midi.py. Note that
+        event.time in track must be in absolute units in order for this
+        function to work correctly.
 
         Args:
             track (mido.MidiTrack): track with event.time in absolute time.
@@ -201,8 +205,9 @@ def midi_to_pianoroll(mid: mido.MidiFile, div: int):
                 continue
             elif event.type == "note_on" and event.velocity > 0:
                 last_note_on[event.note].append(event.time)
-            elif event.type == "note_off" or (event.type == "note_on" and
-                                              event.velocity == 0):
+            elif event.type == "note_off" or (
+                event.type == "note_on" and event.velocity == 0
+            ):
                 # Ignore non-existent note-ons
                 if event.note in last_note_on:
                     end_tick = event.time
@@ -211,11 +216,13 @@ def midi_to_pianoroll(mid: mido.MidiFile, div: int):
                     notes_to_close = [
                         start_tick
                         for start_tick in open_notes
-                        if start_tick != end_tick]
+                        if start_tick != end_tick
+                    ]
                     notes_to_keep = [
                         start_tick
                         for start_tick in open_notes
-                        if start_tick == end_tick]
+                        if start_tick == end_tick
+                    ]
 
                     for start_tick in notes_to_close:
                         notes.append((event.note, start_tick, end_tick))
@@ -230,7 +237,7 @@ def midi_to_pianoroll(mid: mido.MidiFile, div: int):
 
         return notes
 
-    ticks_per_step = int(mid.ticks_per_beat/(div))
+    ticks_per_step = int(mid.ticks_per_beat / (div))
 
     # Convert event_time values in mid to absolute
     for track in mid.tracks:
@@ -250,26 +257,30 @@ def midi_to_pianoroll(mid: mido.MidiFile, div: int):
     # Compute piano_roll
     piano_roll = collections.defaultdict(list)
     for note in mid_notes:
-        for i in range(math.ceil(note[1]/ticks_per_step),
-                       math.ceil(note[2]/ticks_per_step)):
+        for i in range(
+            math.ceil(note[1] / ticks_per_step),
+            math.ceil(note[2] / ticks_per_step),
+        ):
 
             piano_roll[i].append(note[0])
 
     # Reformat
-    piano_roll = [piano_roll.get(i, []) for i in range(max(piano_roll.keys()))]
+    piano_roll = [
+        list(set(piano_roll.get(i, []))) for i in range(max(piano_roll.keys()))
+    ]
 
     return PianoRoll(piano_roll, meta_data)
 
 
 def test():
-    mid = mido.MidiFile('chopin.mid')
+    mid = mido.MidiFile("Ich_ruf (4).mid")
     div = 4
 
     p_roll = PianoRoll.from_midi(mid, div)
     print(p_roll.roll)
 
     new_mid = p_roll.to_midi()
-    new_mid.save('test.mid')
+    new_mid.save("test.mid")
 
 
 if __name__ == "__main__":
