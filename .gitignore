@@ -3,5 +3,7 @@
 **.vscode/
 **__pycache__/
 **tempCodeRunnerFile.py
+
+notes.txt
 paper/
 data/raw/
