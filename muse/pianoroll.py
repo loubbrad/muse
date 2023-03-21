@@ -7,14 +7,25 @@ class PianoRoll:
     """Container for piano-roll objects, includes data and meta-data.
 
     Args:
-        p_roll (list[list]): Piano-roll indicating when notes are on.
-        meta_data (dict): _description_
+        roll (list[list]): Piano-roll indicating when notes are on.
+        meta_data (dict): Dictionary containing metadata relating the the
+            piano-roll. This should also contain meta_events (list) which
+            describe relevant mido.MetaMessages.
     """
 
-    def __init__(self, roll: list[list], meta_data: list):
+    def __init__(self, roll: list[list], meta_data: dict):
         """Initialises PianoRoll with data and metadata."""
         self.roll = roll
         self.meta_data = meta_data
+
+    def add_metadata(self, meta_data: dict):
+        """Adds (or overwrites) additional metadata to PianoRoll.
+
+        Args:
+            meta_data (dict): Metadata to add.
+        """
+        for k, v in meta_data.items():
+            self.meta_data[k] = v
 
     def to_midi(self):
         """Inplace version of pianoroll_to_midi.
@@ -30,9 +41,8 @@ class PianoRoll:
         Returns:
             dict: PianoRoll as dictionary
         """
-        return {"roll": self.roll, "metadata": self.meta_data}
+        return {"roll": self.roll, "meta_data": self.meta_data}
 
-    # Needed?
     @classmethod
     def from_midi(cls, mid: mido.MidiFile, div: int):
         """Inplace version of midi_to_pianoroll.
@@ -123,7 +133,15 @@ def pianoroll_to_midi(piano_roll: PianoRoll):
     return mid
 
 
-# TODO: Add pedal support (control_change, control = 64)
+# TODO:
+# - Implement a run_checks function to run basic checks midi quality. Maybe
+# implement this in another part of the code base (PianoRoll, build_dataset).
+# Include the following checks:
+#   - Lots of tempo changes
+#   - No notes (or very few) notes in piano_roll.
+#   - Weird instrument combinations
+#
+# - Add pedal support (control_change, control = 64)
 def midi_to_pianoroll(mid: mido.MidiFile, div: int):
     """Parses a mido.MidiFile object into a PianoRoll object.
 
@@ -270,18 +288,3 @@ def midi_to_pianoroll(mid: mido.MidiFile, div: int):
     ]
 
     return PianoRoll(piano_roll, meta_data)
-
-
-def test():
-    mid = mido.MidiFile("Ich_ruf (4).mid")
-    div = 4
-
-    p_roll = PianoRoll.from_midi(mid, div)
-    print(p_roll.roll)
-
-    new_mid = p_roll.to_midi()
-    new_mid.save("test.mid")
-
-
-if __name__ == "__main__":
-    test()
