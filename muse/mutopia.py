@@ -41,7 +41,7 @@ def download_ftp(unzip: bool = False):
         os.system("""find mutopia -name "*.zip" -type f -delete""")
 
 
-def parse_metadata(dir: str, meta_tags: list | None = None):
+def parse_rdf_metadata(dir: str, meta_tags: list | None = None):
     """Parses .rdf metadata of all files located in dir.
 
     Note that this function is very hacky. I'm not an expert on rdf or xml. It
@@ -67,16 +67,16 @@ def parse_metadata(dir: str, meta_tags: list | None = None):
 
         Returns:
             dict: Extracted metadata.
-            int: Number of .rdf files present in dir. Used for error handling.
         """
 
         g = Graph()
         g.parse(file, format="xml")
 
+        # See rdflib.Graph docs
         res = {}
         for s, p, o in g:
             tag = p.rsplit("/", 1)[-1]
-            if tag in meta_tags:
+            if tag in meta_tags and str(o) != "":
                 res[tag] = str(o)
 
         return res
@@ -91,10 +91,9 @@ def parse_metadata(dir: str, meta_tags: list | None = None):
             "licence",
         ]
 
-    rdf_count = 0
     for file in os.listdir(dir):
         if file.endswith(".rdf"):
-            meta_data = _parse_rdf(file, meta_tags)
-            rdf_count += 1
+            file_path = os.path.join(dir, file)
+            meta_data = _parse_rdf(file_path, meta_tags)
 
-    return meta_data, rdf_count
+    return meta_data
