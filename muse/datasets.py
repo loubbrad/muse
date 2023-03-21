@@ -1,17 +1,18 @@
-"""Contains utilities for building, saving, and loading raw piano-roll
-datasets."""
+"""Contains utilities for building, saving, and loading raw (and tokenizer)
+piano-roll datasets."""
 
 import json
 import logging
 import random
 import mido
+import torch
 from typing import Callable
 from pathlib import Path
 from progress.bar import Bar
 
 
 from pianoroll import PianoRoll
-from model import Tokenizer
+from models import Tokenizer
 from mutopia import parse_rdf_metadata
 
 
@@ -35,7 +36,7 @@ class Dataset:
         self.test = test
         self.meta_data = meta_data
 
-    # TODO: Implement - Return Pytorch Dataset class, encoded according to
+    # TODO: Implement - Return (torch) Dataset class, encoded according to
     # tokenizer arg.
     def to_train(self, tokenizer: Tokenizer):
 
@@ -104,6 +105,32 @@ class Dataset:
         return build_dataset(dir, recur, meta_tags, tt_split)
 
 
+# TODO: Implement this
+class TorchDataset(torch.data.utils.Dataset):
+    """PyTorch Dataset class for model training.
+
+    On __init__() uses tokenizer to sequentialise / tokenize a Dataset
+    (PianoRoll), ready to be fed into a Transformer.
+
+    Args:
+        dataset (Dataset): _description_
+        tokenizer (Tokenizer): _description_
+    """
+
+    def __init__(
+        self,
+        dataset: Dataset,
+        tokenizer: Tokenizer,
+    ):
+        raise NotImplementedError
+
+    def __len__(self):
+        raise NotImplementedError
+
+    def __getitem__(self, idx: int):
+        raise NotImplementedError
+
+
 def build_dataset(
     dir: str,
     recur: bool = True,
@@ -112,8 +139,6 @@ def build_dataset(
     tt_split: float = 0.9,
 ):
     """Builds a piano-roll dataset from a directory containing .mid files.
-
-    Searches through each
 
     Args:
         dir (str): _description_
@@ -171,13 +196,7 @@ def build_dataset(
 
 
 def test():
-    dataset = build_dataset(
-        "data/raw/mutopia",
-        metadata_fn=parse_rdf_metadata,
-        recur=True,
-    )
-
-    dataset.to_json("data/processed/test_dataset.json")
+    pass
 
 
 if __name__ == "__main__":
