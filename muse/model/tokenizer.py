@@ -1,8 +1,6 @@
 import json
 
-from .pianoroll import PianoRoll
-from .datasets import Dataset
-
+from pianoroll import PianoRoll
 
 # TODO: Implement
 class Tokenizer:
@@ -14,7 +12,6 @@ class Tokenizer:
 
     def __init__(
         self,
-        dataset: Dataset,
         model_config,  # Add type hint when implemented
         **kwargs,  # State explicitly when implemented
     ):

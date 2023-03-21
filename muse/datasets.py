@@ -5,11 +5,13 @@ import json
 import logging
 import random
 import mido
+from typing import Callable
 from pathlib import Path
 from progress.bar import Bar
 
 
 from pianoroll import PianoRoll
+from model import Tokenizer
 from mutopia import parse_rdf_metadata
 
 
@@ -17,34 +19,66 @@ class Dataset:
     """Container for datasets of PianoRoll objects.
 
     Args:
-        train (list): List of PianoRoll objects for train set.
-        test (list): List of PianoRoll objects for test set.
-        test (dict): Dataset level metadata.
+        train (list[PianoRoll]): List of PianoRoll objects for train set.
+        test (list[PianoRoll]): List of PianoRoll objects for test set.
+        meta_data (dict): Dataset level metadata.
     """
 
-    def __init__(self, train: list = [], test: list = [], meta_data: dict = {}):
+    def __init__(
+        self,
+        train: list[PianoRoll] = [],
+        test: list[PianoRoll] = [],
+        meta_data: dict = {},
+    ):
         """Initialises piano-roll dataset."""
         self.train = train
         self.test = test
         self.meta_data = meta_data
 
-    def append(self, piano_roll: PianoRoll, split: str = "train"):
-        """Appends PianoRoll to train or test split."""
-        if split == "train":
-            self.train.append(piano_roll)
-        elif split == "test":
-            self.test.append(piano_roll)
-        else:
-            raise (KeyError)
+    # TODO: Implement - Return Pytorch Dataset class, encoded according to
+    # tokenizer arg.
+    def to_train(self, tokenizer: Tokenizer):
 
-    # TODO: Implement this method.
-    def to_json(self, save_path: str = "."):
+        raise (NotImplementedError)
+
+    def to_json(self, save_path: str):
         """Saves dataset according to specified path.
 
         Args:
-            save_path (str, optional): path to save location. Defaults to '.'.
+            save_path (str): path to save dataset.
         """
-        raise (NotImplementedError)
+        data = {"train": [], "test": [], "meta_data": self.meta_data}
+
+        for entry in self.train:
+            data["train"].append(entry.to_dict())
+        for entry in self.test:
+            data["test"].append(entry.to_dict())
+
+        with open(save_path, "w", encoding="utf-8") as f:
+            json.dump(data, f)
+
+    @classmethod
+    def from_json(cls, load_path: str):
+        """Loads a .json file into a Dataset.
+
+        Args:
+            load_path (str): path to load dataset from.
+
+        Returns:
+            Dataset: Dataset loaded from .json.
+        """
+
+        with open(load_path) as f:
+            data = json.load(f)
+
+        meta_data = data["meta_data"]
+        train, test = [], []
+        for entry in data["train"]:
+            train.append(PianoRoll(**entry))
+        for entry in data["test"]:
+            test.append(PianoRoll(**entry))
+
+        return Dataset(train, test, meta_data)
 
     @classmethod
     def build(
@@ -69,21 +103,12 @@ class Dataset:
         """
         return build_dataset(dir, recur, meta_tags, tt_split)
 
-    # TODO: Implement this method.
-    @classmethod
-    def from_json(cls, path: str):
-        raise (NotImplementedError)
 
-
-# TODO:
-# - Implement support for recur and meta_tags.
-# - Implement a way to filter mid files according to conditions on metadata.
-# - Add proper logging instead of print statements.
 def build_dataset(
     dir: str,
     recur: bool = True,
     div: int = 4,
-    meta_tags: list[str] | None = None,
+    metadata_fn: Callable | None = None,
     tt_split: float = 0.9,
 ):
     """Builds a piano-roll dataset from a directory containing .mid files.
@@ -94,11 +119,16 @@ def build_dataset(
         dir (str): _description_
         recur (bool, optional): _description_. Defaults to False.
         div (int): Amount to subdivide each beat in .mid files.
-        meta_tags (list[str] | None, optional): _description_. Defaults to None.
-        tt_split (float, optional): _description_. Defaults to 0.9.
+        metadata_fn: (Callable | None, optional): Function to call to scrape
+            metadata when a .mid is found. metadata_fn will be given the .mid
+            file's path as an argument. It should return a dictionary of
+            metadata to add to the PianoRoll. Defaults to None.
+        tt_split (float, optional): Ratio for test-train split. Represents the
+            proportion to be included in the train split. Defaults to 0.9.
 
     Returns:
-        _type_: _description_
+        Dataset: Dataset of all PianoRoll objects successfully passed from
+            .mid in the directory dir.
     """
 
     # Calculate number of .mid files present
@@ -109,17 +139,24 @@ def build_dataset(
     # Generate PianoRoll objects
     p_roll_unsplit = []
     with Bar("Building dataset...", max=num_mids) as bar:
-        for path in Path(dir).rglob("*.mid"):
-            mid = mido.MidiFile(path)
+        if recur is True:
+            mid_paths = Path(dir).rglob("*.mid")
+        else:
+            mid_paths = Path(dir).glob("*.mid")
 
+        for path in mid_paths:
             try:
+                mid = mido.MidiFile(path)
                 piano_roll = PianoRoll.from_midi(mid, div)
             except Exception as e:
-                print(f"\n Error parsing file {path}")
-                print(e)
+                print("\n")
+                logging.error(f"Parsing file at {path} failed.", exc_info=True)
+                bar.next()
                 continue
 
-            piano_roll.add_metadata(parse_rdf_metadata(path.parent))
+            if metadata_fn is not None:
+                piano_roll.add_metadata(metadata_fn(path))
+
             piano_roll.add_metadata({"file_name": path.name})
             p_roll_unsplit.append(piano_roll)
 
@@ -134,7 +171,13 @@ def build_dataset(
 
 
 def test():
-    dataset = build_dataset("data/raw/mutopia")
+    dataset = build_dataset(
+        "data/raw/mutopia",
+        metadata_fn=parse_rdf_metadata,
+        recur=True,
+    )
+
+    dataset.to_json("data/processed/test_dataset.json")
 
 
 if __name__ == "__main__":

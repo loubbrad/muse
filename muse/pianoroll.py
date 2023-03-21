@@ -1,5 +1,6 @@
 import math
 import collections
+import logging
 import mido
 
 
@@ -7,13 +8,14 @@ class PianoRoll:
     """Container for piano-roll objects, includes data and meta-data.
 
     Args:
-        roll (list[list]): Piano-roll indicating when notes are on.
+        roll (list): Piano-roll indicating when notes are on. Defaults to
+            [].
         meta_data (dict): Dictionary containing metadata relating the the
             piano-roll. This should also contain meta_events (list) which
-            describe relevant mido.MetaMessages.
+            describe relevant mido.MetaMessages. Defaults to {}.
     """
 
-    def __init__(self, roll: list[list], meta_data: dict):
+    def __init__(self, roll: list = [], meta_data: dict = {}):
         """Initialises PianoRoll with data and metadata."""
         self.roll = roll
         self.meta_data = meta_data
@@ -134,22 +136,19 @@ def pianoroll_to_midi(piano_roll: PianoRoll):
 
 
 # TODO:
-# - Implement a run_checks function to run basic checks midi quality. Maybe
-# implement this in another part of the code base (PianoRoll, build_dataset).
-# Include the following checks:
-#   - Lots of tempo changes
-#   - No notes (or very few) notes in piano_roll.
-#   - Weird instrument combinations
-#
 # - Add pedal support (control_change, control = 64)
-def midi_to_pianoroll(mid: mido.MidiFile, div: int):
+def midi_to_pianoroll(mid: mido.MidiFile, div: int, run_checks: bool = False):
     """Parses a mido.MidiFile object into a PianoRoll object.
 
     Args:
         mid (mido.MidiFile): Midi to be converted to piano-roll.
         div (int): Integer to subdivide each beat by.
+        run_checks (bool, optional): If True, run basic checks on final result
+            to assess it's quality. Useful when building new datasets. Defaults
+            to False.
 
     Returns:
+
         PianoRoll: mid as a PianoRoll object.
     """
 
@@ -191,7 +190,7 @@ def midi_to_pianoroll(mid: mido.MidiFile, div: int):
                 for event in meta_events:
                     if meta_event["type"] == event["type"] and (
                         meta_event["time"] == event["time"]
-                        and (meta_event["data"] == event["data"])
+                        and ((meta_event["data"] == event["data"]))
                     ):
                         occurred = True
 
@@ -255,6 +254,33 @@ def midi_to_pianoroll(mid: mido.MidiFile, div: int):
 
         return notes
 
+    # TODO: Implement this method. Execute when run_checks == True. Provide
+    # logging.warning if any .mid triggers a check.
+    def _run_checks(piano_roll: list, meta_data: dict):
+        """Run's checks
+
+        Args:
+            piano_roll (list): _description_
+            meta_data (dict): _description_
+
+        Returns:
+            _type_: _description_
+        """
+
+        def __tempo_change_check(meta_data: dict):
+            raise (NotImplementedError)
+
+        def __num_notes_check(piano_roll: list):
+            raise (NotImplementedError)
+
+        def __length_check(piano_roll: list):
+            raise (NotImplementedError)
+
+        def _num_notes_check(meta_data: dict):
+            raise (NotImplementedError)
+
+        raise (NotImplementedError)
+
     ticks_per_step = int(mid.ticks_per_beat / (div))
 
     # Convert event_time values in mid to absolute
@@ -281,6 +307,8 @@ def midi_to_pianoroll(mid: mido.MidiFile, div: int):
         ):
 
             piano_roll[i].append(note[0])
+
+    assert piano_roll, "parsed piano-roll is empty"
 
     # Reformat
     piano_roll = [

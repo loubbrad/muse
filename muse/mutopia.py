@@ -2,6 +2,7 @@
 obtained from https://www.mutopiaproject.org"""
 
 import os
+from pathlib import Path
 from rdflib import Graph
 
 
@@ -41,14 +42,16 @@ def download_ftp(unzip: bool = False):
         os.system("""find mutopia -name "*.zip" -type f -delete""")
 
 
-def parse_rdf_metadata(dir: str, meta_tags: list | None = None):
-    """Parses .rdf metadata of all files located in dir.
+def parse_rdf_metadata(path: Path, meta_tags: list | None = None):
+    """Parses .rdf metadata of all .rdf files located in parent path.
 
     Note that this function is very hacky. I'm not an expert on rdf or xml. It
-    also will only work for the .rdf files obtained using download_ftp().
+    should also only work for the .rdf files obtained using download_ftp(). It
+    is designed to be a argument (metadata_fn) in datasets.build_dataset().
 
     Args:
-        dir (str): Directory to search for .rdf file.
+        path (pathlib.Path): Path to search for .rdf file. All .rdf files in
+            path.parent will be parsed and have their metadata returned.
         meta_tags (list[str], optional): list of meta data tags to search for
             and return in .rdf files. If not provided, the default meta_tags
             will be used. These are 'title', 'composer', 'opus', 'for',
@@ -58,7 +61,7 @@ def parse_rdf_metadata(dir: str, meta_tags: list | None = None):
         dict: Relevant metadata located in .rdf file (xml).
     """
 
-    def _parse_rdf(file: str, meta_tags: list[str]):
+    def _parse_rdf(file: Path, meta_tags: list[str]):
         """Internal function for extracting meta data from .rdf file.
 
         Args:
@@ -81,6 +84,8 @@ def parse_rdf_metadata(dir: str, meta_tags: list | None = None):
 
         return res
 
+    meta_data = {}
+
     if meta_tags is None:
         meta_tags = [
             "title",
@@ -91,6 +96,7 @@ def parse_rdf_metadata(dir: str, meta_tags: list | None = None):
             "licence",
         ]
 
+    dir = path.parent
     for file in os.listdir(dir):
         if file.endswith(".rdf"):
             file_path = os.path.join(dir, file)
