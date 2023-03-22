@@ -7,11 +7,14 @@ from dataclasses import dataclass
 
 @dataclass
 class ModelConfig:
-    d_model: int = 512
-    n_heads: int = 16
-    n_layers: int = 12
-    vocab_size: int = -1  # Set according to tokenizer
+    d_model: int = 528
+    n_heads: int = 22
+    n_layers: int = 16
     max_seq_len: int = 1024
+
+    # Set according to tokenizer
+    vocab_size: int = -1
+    pad_id: int = -1
 
 
 class Transformer(nn.Module):
