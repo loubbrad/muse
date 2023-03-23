@@ -5,14 +5,14 @@ import json
 import logging
 import random
 import mido
-import torch
+import torch.utils
 from typing import Callable
 from pathlib import Path
 from progress.bar import Bar
 
 
 from pianoroll import PianoRoll
-from models import Tokenizer
+from models import ModelConfig, Tokenizer, PretrainTokenizer
 from mutopia import parse_rdf_metadata
 
 
@@ -36,11 +36,17 @@ class Dataset:
         self.test = test
         self.meta_data = meta_data
 
-    # TODO: Implement - Return (torch) Dataset class, encoded according to
-    # tokenizer arg.
     def to_train(self, tokenizer: Tokenizer):
+        """Returns a TrainDataset object initiated with dataset=self.
 
-        raise (NotImplementedError)
+        See TrainDataset class for more information.
+
+        Args:
+            tokenizer (model.Tokenizer): Tokenizer subclass holding methods for
+                PianoRoll to torch.Tensor conversion.
+            device (str): Device to send tensors to on __getitem__().
+        """
+        return TrainDataset(self, tokenizer)
 
     def to_json(self, save_path: str):
         """Saves dataset according to specified path.
@@ -83,52 +89,33 @@ class Dataset:
 
     @classmethod
     def build(
+        cls,
         dir: str,
         recur: bool = False,
         div: int = 4,
-        meta_tags: list[str] | None = None,
+        metadata_fn: Callable | None = None,
         tt_split: float = 0.9,
     ):
-        """Inplace version of build_dataset.
+        """Builds a piano-roll dataset from a directory containing .mid files.
 
         Args:
-            dir (str): directory including .mid or .midi files.
+            dir (str): directory including .mid files.
             recur (bool, optional): If True, recursively search directories
                 for . Defaults to False.
             div (int): Amount to subdivide each beat in .mid files.
-            meta_tags (list[str]): meta_tags to scrape from .rdf files.
-            tt_split (float): test-train split ratio.
+            metadata_fn: (Callable | None, optional): Function to call to scrape
+                metadata when a .mid is found. metadata_fn will be given the
+                .mid file's path as an argument. It should return a dictionary
+                of metadata to add to the PianoRoll. Defaults to None.
+            tt_split (float, optional): Ratio for test-train split. Represents
+                the proportion to be included in the train split. Defaults to
+                0.9.
 
         Returns:
-            Dataset: piano-roll dataset, loaded from dir.
+            Dataset: Dataset of all PianoRoll objects successfully passed from
+                .mid in the directory dir.
         """
-        return build_dataset(dir, recur, meta_tags, tt_split)
-
-
-# TODO: Implement this
-class TorchDataset(torch.data.utils.Dataset):
-    """PyTorch Dataset class for model training.
-
-    On __init__() uses tokenizer to sequentialise / tokenize a Dataset
-    (PianoRoll), ready to be fed into a Transformer.
-
-    Args:
-        dataset (Dataset): _description_
-        tokenizer (Tokenizer): _description_
-    """
-
-    def __init__(
-        self,
-        dataset: Dataset,
-        tokenizer: Tokenizer,
-    ):
-        raise NotImplementedError
-
-    def __len__(self):
-        raise NotImplementedError
-
-    def __getitem__(self, idx: int):
-        raise NotImplementedError
+        return build_dataset(dir, recur, div, metadata_fn, tt_split)
 
 
 def build_dataset(
@@ -141,8 +128,9 @@ def build_dataset(
     """Builds a piano-roll dataset from a directory containing .mid files.
 
     Args:
-        dir (str): _description_
-        recur (bool, optional): _description_. Defaults to False.
+        dir (str): directory including .mid files.
+        recur (bool, optional): If True, recursively search directories
+            for . Defaults to False.
         div (int): Amount to subdivide each beat in .mid files.
         metadata_fn: (Callable | None, optional): Function to call to scrape
             metadata when a .mid is found. metadata_fn will be given the .mid
@@ -195,8 +183,42 @@ def build_dataset(
     return Dataset(p_roll_unsplit[:split_ind], p_roll_unsplit[split_ind:])
 
 
+class TrainDataset(torch.utils.data.Dataset):
+    """PyTorch Dataset class for model training.
+
+    On __init__() uses tokenizer to sequentialise a Dataset
+    (PianoRoll), ready to be fed into a Transformer.
+
+    Args:
+        dataset (Dataset): Dataset (PianoRoll) for training.
+        tokenizer (model.Tokenizer): Tokenizer subclass holding methods for
+            PianoRoll to torch.Tensor conversion.
+        device (str): Device to send tensors to on __getitem__().
+    """
+
+    def __init__(
+        self,
+        dataset: Dataset,
+        tokenizer: Tokenizer,
+        device: str = "cpu",
+    ):
+        self.tokenizer = tokenizer
+        self.device = device
+
+        self.train_data = []
+        for piano_roll in dataset.train:
+            self.train_data += tokenizer.seq(piano_roll)
+
+    def __len__(self):
+        return len(self.train_data)
+
+    def __getitem__(self, idx: int):
+        return self.tokenizer.encode(
+            self.tokenizer.mask(self.train_data[idx], mask_p=0.15),
+        )
+
+
 def test():
-    pass
 
 
 if __name__ == "__main__":

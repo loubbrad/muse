@@ -5,6 +5,14 @@ from torch import nn as nn
 from dataclasses import dataclass
 
 
+"""Notes:
+
+Use xformers library for attention and rotary embeddings.
+
+
+"""
+
+
 @dataclass
 class ModelConfig:
     d_model: int = 528
@@ -15,6 +23,7 @@ class ModelConfig:
     # Set according to tokenizer
     vocab_size: int = -1
     pad_id: int = -1
+    mask_id: int = -1
 
 
 class Transformer(nn.Module):

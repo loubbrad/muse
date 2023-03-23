@@ -1,1 +1,2 @@
-from .tokenizer import Tokenizer
+from .tokenizer import Tokenizer, PretrainTokenizer
+from .model import ModelConfig
