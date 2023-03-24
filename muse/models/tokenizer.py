@@ -58,7 +58,7 @@ class Tokenizer:
     def decode(self):
         pass
 
-    def mask(self):
+    def apply(self):
         pass
 
 
@@ -80,6 +80,7 @@ class PretrainTokenizer(Tokenizer):
 
         self.note_off_rate = note_off_rate
 
+    # TODO: Remove starting silence.
     def seq(self, piano_roll: PianoRoll):
         """Sequentialise a PianoRoll object into a list (for pre-training).
 
@@ -168,28 +169,67 @@ class PretrainTokenizer(Tokenizer):
 
         return seq_dec
 
-    def mask(self, seq: list, mask_p: float, mask_special: bool = False):
-        """Performs random masking (in place) on piano-roll sequence.
+    def apply(
+        self,
+        seq: list,
+        mask_p: float = 0.15,
+        pitch_aug_range: int = 6,
+    ):
+        """Applies random masking (in place) on piano-roll sequence.
 
         Args:
             seq (list): Sequences to be randomly masked.
             mask_p (float): Probability that a token should be masked.
-            mask_special (bool): Whether to mask special tokens.
+            pitch_aug_range (bool): Range to randomly augment all notes by.
 
         Returns:
             list: Sequences after appropriate masking.
         """
 
-        if mask_special is True:
-            exclude_toks = []
-        else:
-            exclude_toks = self.vocab_special
+        def _mask_aug_chord(chord: list, src: list, tgt: list):
+            """Appends chord to src and tgt."""
+            for tok in chord:
+                if isinstance(tok, int):
+                    if random.uniform(0, 1) < mask_p:
+                        src.append(self.mask_tok)
+                        tgt.append(tok + pitch_aug)
+                    else:
+                        src.append(tok + pitch_aug)
+                        tgt.append(tok + pitch_aug)
+                elif tok == self.off_tok:
+                    src.append(self.mask_tok)
+                    tgt.append(self.off_tok)
 
-        for idx, tok in enumerate(seq):
-            if tok not in exclude_toks and random.uniform(0, 1) < mask_p:
-                seq[idx] = self.mask_tok
+        src, tgt = [], []
+        pitch_aug = random.randint(-pitch_aug_range, pitch_aug_range)
 
-        return seq
+        idx = 0
+        while idx < self.max_seq_len:
+            # Load current chord into buffer
+            if idx >= 1000:
+                pass
+
+            buffer = []
+            while (
+                seq[idx] != self.time_tok
+                and seq[idx] != self.eos_tok
+                and seq[idx] != self.bos_tok
+                and seq[idx] != self.pad_tok
+            ):
+                buffer.append(seq[idx])
+                idx += 1
+
+            # Perform shuffling, pitch augmenting, and masking
+            if buffer:
+                random.shuffle(buffer)  # Randomly shuffle chord
+                _mask_aug_chord(buffer, src, tgt)
+
+            # Append time_tok, eos_tok, or pad_tok
+            src.append(seq[idx])
+            tgt.append(seq[idx])
+            idx += 1
+
+        return src, tgt
 
 
 class FinetuneTokenizer(Tokenizer):
@@ -213,5 +253,5 @@ class FinetuneTokenizer(Tokenizer):
     def decode(self):
         raise NotImplementedError
 
-    def mask(self):
+    def apply(self):
         raise NotImplementedError
