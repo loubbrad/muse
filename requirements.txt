@@ -1,0 +1,5 @@
+torch>=2.0
+lightning
+xformers
+mido
+progress
