@@ -13,7 +13,6 @@ from progress.bar import Bar
 
 from pianoroll import PianoRoll
 from models import ModelConfig, Tokenizer, PretrainTokenizer
-from mutopia import parse_rdf_metadata
 
 
 class Dataset:
@@ -213,23 +212,16 @@ class TrainDataset(torch.utils.data.Dataset):
         return len(self.train_data)
 
     def __getitem__(self, idx: int):
-        # return self.tokenizer.encode(
-        #    self.tokenizer.apply(self.train_data[idx]),
-        # )
-
-        return self.tokenizer.apply(self.train_data[idx])
+        return self.tokenizer.encode(
+            self.tokenizer.apply(self.train_data[idx]),
+        )
 
 
 def test():
     dataset = Dataset.build("data/raw/miscellaneous", recur=True)
     model_config = ModelConfig()
     tokenizer = PretrainTokenizer(model_config)
-
     train_dataset = TrainDataset(dataset, tokenizer)
-    for i in range(23, 123):
-        for src, tgt in zip(*train_dataset[i]):
-            print(src, tgt)
-        input("...")
 
 
 if __name__ == "__main__":
