@@ -3,6 +3,7 @@ the xFormers library."""
 
 import torch
 from torch import nn as nn
+import torch.utils.checkpoint
 from xformers.factory import xFormerEncoderBlock, xFormerEncoderConfig
 from dataclasses import dataclass
 
@@ -11,7 +12,7 @@ from dataclasses import dataclass
 class ModelConfig:
     d_model: int = 528
     n_heads: int = 22
-    n_layers: int = 4
+    n_layers: int = 16
     ff_mult: int = 4
     drop_p = 0.1
     max_seq_len: int = 1024
@@ -20,6 +21,8 @@ class ModelConfig:
     vocab_size: int = -1
     pad_id: int = -1
     mask_id: int = -1
+
+    grad_checkpoint = True
 
 
 class EncoderBlock(nn.Module):
@@ -70,7 +73,7 @@ class EncoderBlock(nn.Module):
         Returns:
             torch.tensor: forward pass of src through the encoder block.
         """
-        return self.encoder(src)
+        return self.encoder(src, mask)
 
 
 class MuseEncoder(nn.Module):
@@ -91,7 +94,7 @@ class MuseEncoder(nn.Module):
             padding_idx=model_config.pad_id,
         )
 
-        self.encode_layers = torch.nn.ModuleList()
+        self.encode_layers = nn.ModuleList()
         for layer_id in range(model_config.n_layers):
             self.encode_layers.append(EncoderBlock(model_config, layer_id))
 
@@ -109,12 +112,32 @@ class MuseEncoder(nn.Module):
                 d_model).
         """
 
-        x = self.tok_embeddings(src)
+        hidden_states = self.tok_embeddings(src)
 
-        for layer in self.encode_layers:
-            x = layer(x, mask)
+        # Implements gradient checkpoints on Encoder Layers.
+        # TODO: Test that this doesn't change the gradient calculation
+        # TODO: Do profiling for the memory/compute tradeoff
+        if self.model_config.grad_checkpoint is True:
+            for layer in self.encode_layers:
 
-        return x
+                def create_custom_forward(module):
+                    def custom_forward(hidden_states, mask):
+                        return module(hidden_states, mask)
+
+                    return custom_forward
+
+                hidden_states = torch.utils.checkpoint.checkpoint(
+                    create_custom_forward(layer),
+                    hidden_states,
+                    mask,
+                    preserve_rng_state=True,
+                )
+
+        else:
+            for layer in self.encode_layers:
+                hidden_states = layer(hidden_states, mask)
+
+        return hidden_states
 
 
 class MuseMaskedLM(nn.Module):
@@ -163,9 +186,8 @@ def test():
     VOCAB = model_config.vocab_size
 
     x = (torch.rand((BATCH, SEQ)) * VOCAB).abs().to(torch.int)
-    print(x)
-    print(x.shape)
     out = model(x)
+
     print(out)
     print(out.shape)
 
