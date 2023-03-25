@@ -224,7 +224,7 @@ class PretrainTokenizer(Tokenizer):
                 random.shuffle(buffer)  # Randomly shuffle chord
                 _mask_aug_chord(buffer, src, tgt)
 
-            # Append time_tok, eos_tok, or pad_tok
+            # Append time_tok, bos_tok, eos_tok, or pad_tok
             src.append(seq[idx])
             tgt.append(seq[idx])
             idx += 1
@@ -241,7 +241,7 @@ class FinetuneTokenizer(Tokenizer):
     """
 
     def __init__(self, model_config: ModelConfig, device: str):
-        super().__init__()  # Needed?
+        super().__init__()  
         raise NotImplementedError
 
     def seq(self):
