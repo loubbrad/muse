@@ -2,8 +2,12 @@
 obtained from https://www.mutopiaproject.org"""
 
 import os
+import re
 from pathlib import Path
 from rdflib import Graph
+
+
+from pianoroll import PianoRoll
 
 
 def download_ftp(unzip: bool = False):
@@ -45,6 +49,8 @@ def download_ftp(unzip: bool = False):
 def parse_rdf_metadata(path: Path, meta_tags: list | None = None):
     """Parses .rdf metadata of all .rdf files located in parent path.
 
+    This function is designed as an argument for datasets.build_dataset.
+
     Note that this function is very hacky. I'm not an expert on rdf or xml. It
     should also only work for the .rdf files obtained using download_ftp(). It
     is designed to be a argument (metadata_fn) in datasets.build_dataset().
@@ -63,6 +69,8 @@ def parse_rdf_metadata(path: Path, meta_tags: list | None = None):
 
     def _parse_rdf(file: Path, meta_tags: list[str]):
         """Internal function for extracting meta data from .rdf file.
+
+        This function is designed as an argument for datasets.build_dataset.
 
         Args:
             file (str): File to parse.
@@ -103,3 +111,53 @@ def parse_rdf_metadata(path: Path, meta_tags: list | None = None):
             meta_data = _parse_rdf(file_path, meta_tags)
 
     return meta_data
+
+
+def filter_instrument(p_roll: PianoRoll):
+    """Determines whether a PianoRoll from Mutopia should be filtered out.
+
+    This function is designed as an argument for datasets.build_dataset.
+
+    Args:
+        p_roll (PianoRoll): Piano-roll with appropriate meta_data.
+
+    Returns:
+        bool: True if piano_roll is accepted, else False.
+    """
+
+    # Always accept
+    unconditional_tags = [
+        "Piano",
+        "Classical Guitar",
+        "Guitar",
+        "Organ",
+        "Voice (SATB)",
+        "Harpsichord, Piano",
+        "Voice and Piano",
+        "Piano, Pianoforte, Harpsichord, Clavichord",
+        "Voice",
+        "Piano Duet",
+        "Harpsichord",
+        "Harpsichord, Piano, Clavichord",
+        "Violin, Viola",
+        "Harpsichord,Clavichord",
+        "Choir (SATB)",
+        "Clavier",
+    ]
+
+    # Only accept if "score" present in file_name
+    conditional_tags = [
+        "String Quartet",
+        "String Quartet: Two Violins, Viola, 'Cello",
+        "Ensemble: Mandolin, 2 Violins, 'Cello",
+        "Violin and Piano",
+    ]
+
+    if p_roll.meta_data["for"] in unconditional_tags:
+        return True
+    elif p_roll.meta_data["for"] in conditional_tags and (
+        "score" in p_roll.meta_data["file_name"]
+    ):
+        return True
+    else:
+        return False

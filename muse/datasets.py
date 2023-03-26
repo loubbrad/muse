@@ -93,6 +93,7 @@ class Dataset:
         recur: bool = False,
         div: int = 4,
         metadata_fn: Callable | None = None,
+        filter_fn: Callable | None = None,
         tt_split: float = 0.9,
     ):
         """Builds a piano-roll dataset from a directory containing .mid files.
@@ -106,6 +107,10 @@ class Dataset:
                 metadata when a .mid is found. metadata_fn will be given the
                 .mid file's path as an argument. It should return a dictionary
                 of metadata to add to the PianoRoll. Defaults to None.
+            filter_fn: (Callable | None, optional): Function used to filter
+                PianoRolls in train and test. It should return True when
+                provided a valid PianoRoll, and False otherwise. For an
+                example, see filter_instrument in mutopia.py
             tt_split (float, optional): Ratio for test-train split. Represents
                 the proportion to be included in the train split. Defaults to
                 0.9.
@@ -114,7 +119,7 @@ class Dataset:
             Dataset: Dataset of all PianoRoll objects successfully passed from
                 .mid in the directory dir.
         """
-        return build_dataset(dir, recur, div, metadata_fn, tt_split)
+        return build_dataset(dir, recur, div, metadata_fn, filter_fn, tt_split)
 
 
 def build_dataset(
@@ -122,6 +127,7 @@ def build_dataset(
     recur: bool = True,
     div: int = 4,
     metadata_fn: Callable | None = None,
+    filter_fn: Callable | None = None,
     tt_split: float = 0.9,
 ):
     """Builds a piano-roll dataset from a directory containing .mid files.
@@ -135,6 +141,10 @@ def build_dataset(
             metadata when a .mid is found. metadata_fn will be given the .mid
             file's path as an argument. It should return a dictionary of
             metadata to add to the PianoRoll. Defaults to None.
+        filter_fn: (Callable | None, optional): Function used to filter
+            PianoRolls in train and test. It should return True when
+            provided a valid PianoRoll, and False otherwise. For an
+            example, see filter_instrument in mutopia.py
         tt_split (float, optional): Ratio for test-train split. Represents the
             proportion to be included in the train split. Defaults to 0.9.
 
@@ -160,17 +170,20 @@ def build_dataset(
             try:
                 mid = mido.MidiFile(path)
                 piano_roll = PianoRoll.from_midi(mid, div)
-            except Exception as e:
+            except Exception:
                 print("\n")
                 logging.error(f"Parsing file at {path} failed.", exc_info=True)
                 bar.next()
                 continue
 
+            # Add metadata according to metadata_fn
             if metadata_fn is not None:
                 piano_roll.add_metadata(metadata_fn(path))
-
             piano_roll.add_metadata({"file_name": path.name})
-            p_roll_unsplit.append(piano_roll)
+
+            # Filter according to filter_fn
+            if filter_fn is not None and filter_fn(piano_roll) is True:
+                p_roll_unsplit.append(piano_roll)
 
             bar.next()
 

@@ -137,7 +137,7 @@ def pianoroll_to_midi(piano_roll: PianoRoll):
 
 # TODO:
 # - Add pedal support (control_change, control = 64)
-def midi_to_pianoroll(mid: mido.MidiFile, div: int, run_checks: bool = False):
+def midi_to_pianoroll(mid: mido.MidiFile, div: int):
     """Parses a mido.MidiFile object into a PianoRoll object.
 
     Args:
@@ -253,33 +253,6 @@ def midi_to_pianoroll(mid: mido.MidiFile, div: int, run_checks: bool = False):
                         del last_note_on[event.note]
 
         return notes
-
-    # TODO: Implement this method. Execute when run_checks == True. Provide
-    # logging.warning if any .mid triggers a check.
-    def _run_checks(piano_roll: list, meta_data: dict):
-        """Run's checks
-
-        Args:
-            piano_roll (list): _description_
-            meta_data (dict): _description_
-
-        Returns:
-            _type_: _description_
-        """
-
-        def __tempo_change_check(meta_data: dict):
-            raise (NotImplementedError)
-
-        def __num_notes_check(piano_roll: list):
-            raise (NotImplementedError)
-
-        def __length_check(piano_roll: list):
-            raise (NotImplementedError)
-
-        def _num_notes_check(meta_data: dict):
-            raise (NotImplementedError)
-
-        raise (NotImplementedError)
 
     ticks_per_step = int(mid.ticks_per_beat / (div))
 
