@@ -28,12 +28,16 @@ class ModelConfig:
 class EncoderBlock(nn.Module):
     """Encoder block with rotary embeddings from xFormers library.
 
+    Note that xFormer blocks expect batch first. Furthermore, mask should be
+    True for elements we want to attend to (see xFormers HOWTO).
+
     Args:
         model_config (ModelConfig): Model config settings.
     """
 
     def __init__(self, model_config: ModelConfig, layer_id: int):
         super().__init__()
+        self.layer_id = layer_id
 
         encoder_config = {
             "dim_model": model_config.d_model,

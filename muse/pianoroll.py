@@ -1,6 +1,5 @@
 import math
 import collections
-import logging
 import mido
 
 

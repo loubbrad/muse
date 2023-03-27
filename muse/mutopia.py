@@ -2,7 +2,6 @@
 obtained from https://www.mutopiaproject.org"""
 
 import os
-import re
 from pathlib import Path
 from rdflib import Graph
 

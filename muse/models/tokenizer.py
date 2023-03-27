@@ -241,7 +241,7 @@ class FinetuneTokenizer(Tokenizer):
     """
 
     def __init__(self, model_config: ModelConfig, device: str):
-        super().__init__()  
+        super().__init__()
         raise NotImplementedError
 
     def seq(self):
