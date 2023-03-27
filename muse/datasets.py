@@ -11,7 +11,7 @@ from pathlib import Path
 from progress.bar import Bar
 
 
-from pianoroll import PianoRoll
+from pianoroll import PianoRoll, pianoroll_to_midi
 from models import ModelConfig, Tokenizer, PretrainTokenizer
 
 
@@ -110,7 +110,7 @@ class Dataset:
             filter_fn: (Callable | None, optional): Function used to filter
                 PianoRolls in train and test. It should return True when
                 provided a valid PianoRoll, and False otherwise. For an
-                example, see filter_instrument in mutopia.py
+                example, see filter_instrument in mutopia.py.
             tt_split (float, optional): Ratio for test-train split. Represents
                 the proportion to be included in the train split. Defaults to
                 0.9.
@@ -144,7 +144,7 @@ def build_dataset(
         filter_fn: (Callable | None, optional): Function used to filter
             PianoRolls in train and test. It should return True when
             provided a valid PianoRoll, and False otherwise. For an
-            example, see filter_instrument in mutopia.py
+            example, see filter_instrument in mutopia.py.
         tt_split (float, optional): Ratio for test-train split. Represents the
             proportion to be included in the train split. Defaults to 0.9.
 
@@ -182,7 +182,9 @@ def build_dataset(
             piano_roll.add_metadata({"file_name": path.name})
 
             # Filter according to filter_fn
-            if filter_fn is not None and filter_fn(piano_roll) is True:
+            if filter_fn is None:
+                p_roll_unsplit.append(piano_roll)
+            elif filter_fn is not None and filter_fn(piano_roll) is True:
                 p_roll_unsplit.append(piano_roll)
 
             bar.next()
@@ -196,45 +198,58 @@ def build_dataset(
 
 
 class TrainDataset(torch.utils.data.Dataset):
-    """PyTorch Dataset class for model training.
+    """PyTorch Dataset class for training data.
 
-    On __init__() uses tokenizer to sequentialise a Dataset
-    (PianoRoll), ready to be fed into a Transformer.
+    On __init__() uses tokenizer to sequentialise a Dataset (PianoRoll). This
+    class is meant as an input for a PyTorch Dataloader object.
 
     Args:
         dataset (Dataset): Dataset (PianoRoll) for training.
         tokenizer (model.Tokenizer): Tokenizer subclass holding methods for
             PianoRoll to torch.Tensor conversion.
-        device (str): Device to send tensors to on __getitem__().
+        split (str): Whether to use train or test set.
     """
 
     def __init__(
         self,
         dataset: Dataset,
         tokenizer: Tokenizer,
-        device: str = "cpu",
+        split: str,
     ):
         self.tokenizer = tokenizer
-        self.device = device
+        self.pad_id = tokenizer.tok_to_id["<P>"]
 
-        self.train_data = []
-        for piano_roll in dataset.train:
-            self.train_data += tokenizer.seq(piano_roll)
+        if split == "train":
+            self.data = []
+            for piano_roll in dataset.train:
+                self.data += tokenizer.seq(piano_roll)
+        elif split == "test":
+            self.data = []
+            for piano_roll in dataset.test:
+                self.data += tokenizer.seq(piano_roll)
+        else:
+            raise ValueError("Invalid value for split.")
 
     def __len__(self):
-        return len(self.train_data)
+        return len(self.data)
 
     def __getitem__(self, idx: int):
-        return self.tokenizer.encode(
-            self.tokenizer.apply(self.train_data[idx]),
-        )
+        src, tgt = self.tokenizer.apply(self.data[idx])
+
+        src_enc = self.tokenizer.encode(src)
+        tgt_enc = self.tokenizer.encode(tgt)
+        mask = torch.where(src_enc == self.pad_id, False, True)
+
+        return src_enc, tgt_enc, mask
 
 
 def test():
     dataset = Dataset.build("data/raw/miscellaneous", recur=True)
     model_config = ModelConfig()
     tokenizer = PretrainTokenizer(model_config)
-    train_dataset = TrainDataset(dataset, tokenizer)
+    train_dataset = TrainDataset(dataset, tokenizer, split="test")
+
+    print(len(train_dataset))
 
 
 if __name__ == "__main__":
