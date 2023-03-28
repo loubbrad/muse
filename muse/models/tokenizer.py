@@ -68,6 +68,7 @@ class PretrainTokenizer(Tokenizer):
     Args:
         model_config (model.ModelConfig): Config for model.
         device (str): Device to sent PyTorch tensors to send torch.tensors to.
+        note_off_rate (float): Rate to randomly add masked off-notes.
     """
 
     def __init__(
@@ -206,9 +207,6 @@ class PretrainTokenizer(Tokenizer):
         idx = 0
         while idx < self.max_seq_len:
             # Load current chord into buffer
-            if idx >= 1000:
-                pass
-
             buffer = []
             while (
                 seq[idx] != self.time_tok

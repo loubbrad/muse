@@ -11,10 +11,13 @@ from pathlib import Path
 from progress.bar import Bar
 
 
-from pianoroll import PianoRoll, pianoroll_to_midi
-from models import ModelConfig, Tokenizer, PretrainTokenizer
+from pianoroll import PianoRoll
+from mutopia import parse_rdf_metadata, filter_instrument
+from models.model import ModelConfig
+from models.tokenizer import Tokenizer, PretrainTokenizer
 
 
+# Refactor this name, it is confusing
 class Dataset:
     """Container for datasets of PianoRoll objects.
 
@@ -35,7 +38,7 @@ class Dataset:
         self.test = test
         self.meta_data = meta_data
 
-    def to_train(self, tokenizer: Tokenizer):
+    def to_train(self, tokenizer: Tokenizer, split: str):
         """Returns a TrainDataset object initiated with dataset=self.
 
         See TrainDataset class for more information.
@@ -44,8 +47,9 @@ class Dataset:
             tokenizer (model.Tokenizer): Tokenizer subclass holding methods for
                 PianoRoll to torch.Tensor conversion.
             device (str): Device to send tensors to on __getitem__().
+            split (str): Whether to use train or test set.
         """
-        return TrainDataset(self, tokenizer)
+        return TrainDataset(self, tokenizer, split)
 
     def to_json(self, save_path: str):
         """Saves dataset according to specified path.
@@ -159,6 +163,8 @@ def build_dataset(
         num_mids += 1
 
     # Generate PianoRoll objects
+    filter_num = 0
+    parse_err_num = 0
     p_roll_unsplit = []
     with Bar("Building dataset...", max=num_mids) as bar:
         if recur is True:
@@ -173,6 +179,7 @@ def build_dataset(
             except Exception:
                 print("\n")
                 logging.error(f"Parsing file at {path} failed.", exc_info=True)
+                parse_err_num += 1
                 bar.next()
                 continue
 
@@ -186,8 +193,14 @@ def build_dataset(
                 p_roll_unsplit.append(piano_roll)
             elif filter_fn is not None and filter_fn(piano_roll) is True:
                 p_roll_unsplit.append(piano_roll)
+            else:
+                filter_num += 1
 
             bar.next()
+
+    print(
+        f"Finished. Failed to parse {parse_err_num} files. Filtered {filter_num} files."
+    )
 
     # For repeatability when building train-test split
     random.seed(42)
@@ -217,7 +230,6 @@ class TrainDataset(torch.utils.data.Dataset):
         split: str,
     ):
         self.tokenizer = tokenizer
-        self.pad_id = tokenizer.tok_to_id["<P>"]
 
         if split == "train":
             self.data = []
@@ -238,19 +250,23 @@ class TrainDataset(torch.utils.data.Dataset):
 
         src_enc = self.tokenizer.encode(src)
         tgt_enc = self.tokenizer.encode(tgt)
-        mask = torch.where(src_enc == self.pad_id, False, True)
 
-        return src_enc, tgt_enc, mask
+        return src_enc, tgt_enc
 
 
-def test():
-    dataset = Dataset.build("data/raw/miscellaneous", recur=True)
+def main():
+    dataset = Dataset.build(
+        "data/raw/mutopia",
+        recur=True,
+        metadata_fn=parse_rdf_metadata,
+        filter_fn=filter_instrument,
+    )
+    dataset.to_json("data/processed/mutopia.json")
+    
     model_config = ModelConfig()
     tokenizer = PretrainTokenizer(model_config)
-    train_dataset = TrainDataset(dataset, tokenizer, split="test")
-
+    train_dataset = TrainDataset(dataset, tokenizer, split='train')
     print(len(train_dataset))
 
-
 if __name__ == "__main__":
-    test()
+    main()

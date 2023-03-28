@@ -10,9 +10,9 @@ from dataclasses import dataclass
 
 @dataclass
 class ModelConfig:
-    d_model: int = 528
-    n_heads: int = 22
-    n_layers: int = 16
+    d_model: int = 384
+    n_heads: int = 16
+    n_layers: int = 2
     ff_mult: int = 4
     drop_p = 0.1
     max_seq_len: int = 1024
@@ -22,14 +22,14 @@ class ModelConfig:
     pad_id: int = -1
     mask_id: int = -1
 
-    grad_checkpoint = True
+    grad_checkpoint: bool = True
+    att_mask: bool = None
 
 
 class EncoderBlock(nn.Module):
     """Encoder block with rotary embeddings from xFormers library.
 
-    Note that xFormer blocks expect batch first. Furthermore, mask should be
-    True for elements we want to attend to (see xFormers HOWTO).
+    Note that xFormer blocks expect batch first.
 
     Args:
         model_config (ModelConfig): Model config settings.
@@ -38,6 +38,7 @@ class EncoderBlock(nn.Module):
     def __init__(self, model_config: ModelConfig, layer_id: int):
         super().__init__()
         self.layer_id = layer_id
+        self.mask = model_config.att_mask
 
         encoder_config = {
             "dim_model": model_config.d_model,
@@ -65,19 +66,17 @@ class EncoderBlock(nn.Module):
         config = xFormerEncoderConfig(**encoder_config)
         self.encoder = xFormerEncoderBlock(config)
 
-    def forward(self, src: torch.Tensor, mask: torch.Tensor | None = None):
+    def forward(self, src: torch.Tensor):
         """Forward pass for EncoderBlock.
 
         Args:
             src (torch.tensor): Input to encoder block, of shape (batch_size,
                 seq_len, d_model).
-            mask (torch.tensor): Attention mask (dtype=torch.bool), where true
-                means the element should be attended to.
 
         Returns:
             torch.tensor: forward pass of src through the encoder block.
         """
-        return self.encoder(src, mask)
+        return self.encoder(src, self.mask)
 
 
 class MuseEncoder(nn.Module):
@@ -102,14 +101,12 @@ class MuseEncoder(nn.Module):
         for layer_id in range(model_config.n_layers):
             self.encode_layers.append(EncoderBlock(model_config, layer_id))
 
-    def forward(self, src: torch.Tensor, mask: torch.Tensor | None = None):
+    def forward(self, src: torch.Tensor):
         """Forward pass of MuseEncoder.
 
         Args:
             src (torch.tensor): Input to encoder block, of shape (batch_size,
                 seq_len, d_model).
-            mask (torch.tensor): Attention mask (dtype=torch.bool), where true
-                means the element should be attended to.
 
         Returns:
             torch.tensor: Model outputs with shape (batch_size, seq_len,
@@ -125,21 +122,20 @@ class MuseEncoder(nn.Module):
             for layer in self.encode_layers:
 
                 def create_custom_forward(module):
-                    def custom_forward(hidden_states, mask):
-                        return module(hidden_states, mask)
+                    def custom_forward(hidden_states):
+                        return module(hidden_states)
 
                     return custom_forward
 
                 hidden_states = torch.utils.checkpoint.checkpoint(
                     create_custom_forward(layer),
                     hidden_states,
-                    mask,
                     preserve_rng_state=True,
                 )
 
         else:
             for layer in self.encode_layers:
-                hidden_states = layer(hidden_states, mask)
+                hidden_states = layer(hidden_states)
 
         return hidden_states
 
@@ -159,42 +155,24 @@ class MuseMaskedLM(nn.Module):
             model_config.d_model, model_config.vocab_size, bias=False
         )
 
-    def forward(self, src: torch.Tensor, mask: torch.Tensor | None = None):
+    def forward(self, src: torch.Tensor):
         """Forward pass of MuseEncoder with MaskedLM head (logits output).
 
         Args:
             src (torch.tensor): Input to encoder block, of shape (batch_size,
                 seq_len, d_model).
-            mask (torch.tensor): Attention mask (dtype=torch.bool), where true
-                means the element should be attended to.
 
         Returns:
             torch.tensor: Forward pass of src through the encoder block.
         """
-        return self.lm_head(self.model(src, mask))
+        logits = self.lm_head(self.model(src))
+
+        return logits
 
 
-def test():
-    model_config = ModelConfig()
-    model_config.vocab_size = 200
-    model_config.pad_id = 4
-    model_config.mask_id = 10
-
-    model = MuseMaskedLM(model_config)
-    print(
-        f"Initialised model with {sum(p.numel() for p in model.parameters() if p.requires_grad)} parameters."
-    )
-
-    BATCH = 2
-    SEQ = model_config.max_seq_len
-    VOCAB = model_config.vocab_size
-
-    x = (torch.rand((BATCH, SEQ)) * VOCAB).abs().to(torch.int)
-    out = model(x)
-
-    print(out)
-    print(out.shape)
+def main():
+    pass
 
 
 if __name__ == "__main__":
-    test()
+    main()
