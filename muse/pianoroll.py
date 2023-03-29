@@ -136,6 +136,8 @@ def pianoroll_to_midi(piano_roll: PianoRoll):
 
 # TODO:
 # - Add pedal support (control_change, control = 64)
+# - Add an indicator for when a note is repressed
+# - Both of these need to happen before training!!!
 def midi_to_pianoroll(mid: mido.MidiFile, div: int):
     """Parses a mido.MidiFile object into a PianoRoll object.
 
@@ -288,3 +290,12 @@ def midi_to_pianoroll(mid: mido.MidiFile, div: int):
     ]
 
     return PianoRoll(piano_roll, meta_data)
+    
+
+if __name__ == "__main__":
+    mid = mido.MidiFile('data/raw/miscellaneous/beethoven/sonatas/sonate_23_(c)hisamori.mid')
+    p_roll = PianoRoll.from_midi(mid, div=8)
+    print(p_roll.roll)
+    mid = p_roll.to_midi()
+    
+    mid.save('test.mid')

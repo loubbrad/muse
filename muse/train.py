@@ -71,7 +71,7 @@ def main():
     dataset = Dataset.from_json("data/processed/chorale_dataset.json")
     dataset_train = dataset.to_train(tokenizer, split="train")
     dataset_val = dataset.to_train(tokenizer, split="test")
-    dl_train = DataLoader(dataset_train, batch_size=batch_size, num_workers=8)
+    dl_train = DataLoader(dataset_train, batch_size=batch_size, num_workers=4)
     dl_val = DataLoader(dataset_val, batch_size=batch_size, num_workers=4)
 
     model = MusePretrainLM(model_config, lr=lr)
