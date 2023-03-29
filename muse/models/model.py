@@ -13,15 +13,15 @@ from dataclasses import dataclass
 class ModelConfig:
     d_model: int = 128
     n_heads: int = 8
-    n_layers: int = 4
+    n_layers: int = 8
     ff_mult: int = 4
     drop_p = 0.1
-    max_seq_len: int = 10
+    max_seq_len: int = 1024
 
     # Set according to tokenizer
-    vocab_size: int = 100
-    pad_id: int = 2
-    mask_id: int = 50
+    vocab_size: int = -1
+    pad_id: int = -1
+    mask_id: int = -1
 
     grad_checkpoint: bool = True
     att_mask: bool = None

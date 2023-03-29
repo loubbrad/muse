@@ -64,8 +64,9 @@ class MusePretrainLM(pl.LightningModule):
 def main():
     model_config = ModelConfig()
     tokenizer = PretrainTokenizer(model_config)
+    model = MusePretrainLM(model_config, lr=lr)
 
-    lr = 3e-4
+    lr = 3e-3
     batch_size = 16
 
     dataset = Dataset.from_json("data/processed/chorale_dataset.json")
@@ -74,21 +75,69 @@ def main():
     dl_train = DataLoader(dataset_train, batch_size=batch_size, num_workers=4)
     dl_val = DataLoader(dataset_val, batch_size=batch_size, num_workers=4)
 
-    model = MusePretrainLM(model_config, lr=lr)
     trainer = pl.Trainer(
         devices=1,
         accelerator="gpu",
         precision="16-mixed",
         enable_checkpointing=False,
-        max_epochs=5,
+        max_epochs=100,
     )
 
     # Train
     trainer.fit(model, dl_train, dl_val)
 
-    # Predict
-    # pred = torch.argmax(logits, dim=2)
+
+def run_overfit_batch():
+    """Over-fits a single batch. Needed as data augmentation is on by default.
+    This function is messy and probably won't work. Only used for development.
+    """
+
+    class NoAugDataset(torch.utils.data.Dataset):
+        def __init__(self, x, y):
+            self.x = x
+            self.y = y
+
+        def __len__(self):
+            return self.x.shape[0]
+
+        def __getitem__(self, idx):
+            return self.x[idx], self.y[idx]
+
+    lr = 3e-3
+    model_config = ModelConfig()
+    tokenizer = PretrainTokenizer(model_config)
+    model = MusePretrainLM(model_config, lr=lr)
+
+    dataset = Dataset.from_json("data/processed/chorale_dataset.json")
+    dataset = dataset.to_train(tokenizer, split="train")
+
+    x_tmp, y_tmp = dataset[0]
+    x, y = [x_tmp], [y_tmp]
+    for i in range(1, 16):
+        x_tmp, y_tmp = dataset[i]
+        x.append(x_tmp)
+        y.append(y_tmp)
+
+    x = torch.stack(x, dim=0)
+    y = torch.stack(y, dim=0)
+
+    of_dataset_train = NoAugDataset(x[:8], y[:8])
+    of_dataloader_train = DataLoader(of_dataset_train, batch_size=8)
+    of_dataset_val = NoAugDataset(x[8:], y[8:])
+    of_dataloader_val = DataLoader(of_dataset_val, batch_size=8)
+
+    trainer = pl.Trainer(
+        devices=1,
+        accelerator="gpu",
+        precision="16-mixed",
+        enable_checkpointing=False,
+        max_epochs=1000,
+        overfit_batches=True,
+    )
+
+    # Train
+    trainer.fit(model, of_dataloader_train, of_dataloader_val)
 
 
 if __name__ == "__main__":
-    main()
+    run_overfit_batch()
