@@ -1,5 +1,7 @@
-torch
-lightning
+pytorch
+triton==2.0.0.dev20221105
 xformers
+lightning
 mido
 progress
+rdflib
