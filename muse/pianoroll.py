@@ -189,9 +189,10 @@ def midi_to_pianoroll(mid: mido.MidiFile, div: int):
                 # Check if meta event is unique
                 occurred = False
                 for event in meta_events:
-                    if meta_event["type"] == event["type"] and (
-                        meta_event["time"] == event["time"]
-                        and ((meta_event["data"] == event["data"]))
+                    if (
+                        meta_event["type"] == event["type"]
+                        and meta_event["time"] == event["time"]
+                        and meta_event["data"] == event["data"]
                     ):
                         occurred = True
 
@@ -279,7 +280,6 @@ def midi_to_pianoroll(mid: mido.MidiFile, div: int):
             math.ceil(note[1] / ticks_per_step),
             math.ceil(note[2] / ticks_per_step),
         ):
-
             piano_roll[i].append(note[0])
 
     assert piano_roll, "parsed piano-roll is empty"
@@ -290,12 +290,3 @@ def midi_to_pianoroll(mid: mido.MidiFile, div: int):
     ]
 
     return PianoRoll(piano_roll, meta_data)
-    
-
-if __name__ == "__main__":
-    mid = mido.MidiFile('data/raw/miscellaneous/beethoven/sonatas/sonate_23_(c)hisamori.mid')
-    p_roll = PianoRoll.from_midi(mid, div=8)
-    print(p_roll.roll)
-    mid = p_roll.to_midi()
-    
-    mid.save('test.mid')

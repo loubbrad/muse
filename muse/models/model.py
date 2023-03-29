@@ -1,82 +1,164 @@
-"""Includes (PyTorch) transformer model and config classes. Created using
-the xFormers library."""
+"""Includes (PyTorch) transformer model and config classes."""
 
+import math
 import torch
-from torch import nn as nn
 import torch.utils.checkpoint
-from xformers.factory import xFormerEncoderBlock, xFormerEncoderConfig
+from torch import nn as nn
+from torch.nn import functional as F
+from typing import Tuple
 from dataclasses import dataclass
 
 
 @dataclass
 class ModelConfig:
-    d_model: int = 384
-    n_heads: int = 16
-    n_layers: int = 2
+    d_model: int = 128
+    n_heads: int = 8
+    n_layers: int = 4
     ff_mult: int = 4
     drop_p = 0.1
-    max_seq_len: int = 1024
+    max_seq_len: int = 10
 
     # Set according to tokenizer
-    vocab_size: int = -1
-    pad_id: int = -1
-    mask_id: int = -1
+    vocab_size: int = 100
+    pad_id: int = 2
+    mask_id: int = 50
 
     grad_checkpoint: bool = True
     att_mask: bool = None
 
 
-class EncoderBlock(nn.Module):
-    """Encoder block with rotary embeddings from xFormers library.
+# Taken from facebookresearch/llama/model.py
+def reshape_for_broadcast(freqs_cis: torch.Tensor, x: torch.Tensor):
+    ndim = x.ndim
+    assert 0 <= 1 < ndim
+    assert freqs_cis.shape == (x.shape[1], x.shape[-1])
+    shape = [d if i == 1 or i == ndim - 1 else 1 for i, d in enumerate(x.shape)]
+    return freqs_cis.view(*shape)
 
-    Note that xFormer blocks expect batch first.
+
+# Taken from facebookresearch/llama/model.py
+def apply_rotary_emb(
+    xq: torch.Tensor,
+    xk: torch.Tensor,
+    freqs_cis: torch.Tensor,
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    xq_ = torch.view_as_complex(xq.float().reshape(*xq.shape[:-1], -1, 2))
+    xk_ = torch.view_as_complex(xk.float().reshape(*xk.shape[:-1], -1, 2))
+    freqs_cis = reshape_for_broadcast(freqs_cis, xq_)
+    xq_out = torch.view_as_real(xq_ * freqs_cis).flatten(3)
+    xk_out = torch.view_as_real(xk_ * freqs_cis).flatten(3)
+
+    return xq_out.type_as(xq), xk_out.type_as(xk)
+
+
+class ManualEncoderBlock(nn.Module):
+    """Transformer Encoder Block.
+
+    This block has the following changes from a typical transformer encoder:
+
+        - Rotary embeddings are applied to the key/query matrices.
+        - Layer norm is applied before attention and feed forward, instead of
+            after.
+        - Keys arising from padding are masked during attention.
+        - GELU activation is used instead of ReLU.
 
     Args:
         model_config (ModelConfig): Model config settings.
     """
 
-    def __init__(self, model_config: ModelConfig, layer_id: int):
+    def __init__(self, model_config: ModelConfig):
         super().__init__()
-        self.layer_id = layer_id
-        self.mask = model_config.att_mask
 
-        encoder_config = {
-            "dim_model": model_config.d_model,
-            "residual_norm_style": "pre",
-            "multi_head_config": {
-                "num_heads": model_config.n_heads,
-                "residual_dropout": model_config.drop_p,
-                "use_rotary_embeddings": True,
-                "attention": {
-                    "name": "scaled_dot_product",
-                    "dropout": model_config.drop_p,
-                    "seq_len": model_config.max_seq_len,
-                    "casual": False,
-                    "use_rotary_embeddings": True,
-                },
-            },
-            "feedforward_config": {
-                "name": "MLP",
-                "dropout": model_config.drop_p,
-                "activation": "gelu",
-                "hidden_layer_multiplier": 4,
-            },
-        }
+        self.pad_id = model_config.pad_id
+        self.n_heads = model_config.n_heads
+        self.d_head = model_config.d_model // model_config.n_heads
+        self.max_seq_len = model_config.max_seq_len
 
-        config = xFormerEncoderConfig(**encoder_config)
-        self.encoder = xFormerEncoderBlock(config)
+        # Attention
+        self.q = nn.Linear(
+            in_features=model_config.d_model,
+            out_features=model_config.d_model,
+            bias=False,
+        )
+        self.k = nn.Linear(
+            in_features=model_config.d_model,
+            out_features=model_config.d_model,
+            bias=False,
+        )
+        self.v = nn.Linear(
+            in_features=model_config.d_model,
+            out_features=model_config.d_model,
+            bias=False,
+        )
+        self.att_proj_linear = nn.Linear(
+            in_features=model_config.d_model,
+            out_features=model_config.d_model,
+        )
+        self.att_dropout = nn.Dropout(model_config.drop_p)
+        self.resid_dropout = nn.Dropout(model_config.drop_p)
 
-    def forward(self, src: torch.Tensor):
-        """Forward pass for EncoderBlock.
+        # FF Layer
+        self.ff_dropout = nn.Dropout(model_config.drop_p)
+        self.ff_linear_1 = nn.Linear(
+            in_features=model_config.d_model,
+            out_features=model_config.d_model * model_config.ff_mult,
+        )
+        self.ff_linear_2 = nn.Linear(
+            in_features=model_config.d_model * model_config.ff_mult,
+            out_features=model_config.d_model,
+        )
+        self.ff_activation = nn.GELU()
 
-        Args:
-            src (torch.tensor): Input to encoder block, of shape (batch_size,
-                seq_len, d_model).
+        # Pre layer norms
+        self.norm1 = nn.LayerNorm(model_config.d_model)
+        self.norm2 = nn.LayerNorm(model_config.d_model)
 
-        Returns:
-            torch.tensor: forward pass of src through the encoder block.
-        """
-        return self.encoder(src, self.mask)
+    def forward(
+        self, x: torch.Tensor, pad_mask: torch.Tensor, freqs_cis: torch.Tensor
+    ):
+        x = x + self._att_block(self.norm1(x), pad_mask, freqs_cis)
+        x = x + self._ff_block(self.norm2(x))
+
+        return x
+
+    def _att_block(
+        self, x: torch.Tensor, pad_mask: torch.Tensor, freqs_cis: torch.Tensor
+    ):
+        batch_size, seq_len, _ = x.shape
+        xq, xk, xv = self.q(x), self.k(x), self.v(x)
+
+        # Reshape for rotary embeddings
+        xq = xq.view(batch_size, seq_len, self.n_heads, self.d_head)
+        xk = xk.view(batch_size, seq_len, self.n_heads, self.d_head)
+        xv = xv.view(batch_size, seq_len, self.n_heads, self.d_head)
+        xq, xk = apply_rotary_emb(xq, xk, freqs_cis)
+
+        # Reshape for attention calculation: (b_sz, n_head, s_len, d_head)
+        xq = xq.transpose(1, 2)
+        xk = xk.transpose(1, 2)
+        xv = xv.transpose(1, 2)
+
+        # Calc attention matrix:
+        # (b_sz, n_head, s_len, d_head) @ (b_sz, n_head, d_head, s_len)
+        #  = (b_sz, n_head, s_len, s_len)
+        att = (xq @ xk.transpose(2, 3)) / math.sqrt(self.d_head)
+        att = att.masked_fill(pad_mask, float("-inf"))
+        att = F.softmax(att, dim=-1)
+        att = self.att_dropout(att)
+
+        # Calc outputs:
+        # (b_sz, n_head, s_len, s_len) @ (b_sz, n_head, s_len, d_head)
+        # = (b_sz, n_head, s_len, d_head)
+        out = att @ xv
+        out = out.transpose(1, 2).contiguous()  # (b_sz, s_len, n_head, d_head)
+        out = out.view(batch_size, seq_len, self.n_heads * self.d_head)
+
+        return self.resid_dropout(self.att_proj_linear(out))
+
+    def _ff_block(self, x: torch.Tensor):
+        x = self.ff_linear_2(self.ff_activation(self.ff_linear_1(x)))
+
+        return self.ff_dropout(x)
 
 
 class MuseEncoder(nn.Module):
@@ -90,6 +172,15 @@ class MuseEncoder(nn.Module):
         super().__init__()
 
         self.model_config = model_config
+        self.pad_id = model_config.pad_id
+
+        # Used for Rotary Embeddings - see LLaMA
+        d_head = model_config.d_model // model_config.n_heads
+        max_seq_len = model_config.max_seq_len
+        self.register_buffer(
+            "freqs_cis",
+            self._precompute_freqs_cis(d_head, max_seq_len),
+        )
 
         self.tok_embeddings = nn.Embedding(
             num_embeddings=model_config.vocab_size,
@@ -98,8 +189,8 @@ class MuseEncoder(nn.Module):
         )
 
         self.encode_layers = nn.ModuleList()
-        for layer_id in range(model_config.n_layers):
-            self.encode_layers.append(EncoderBlock(model_config, layer_id))
+        for _ in range(model_config.n_layers):
+            self.encode_layers.append(ManualEncoderBlock(model_config))
 
     def forward(self, src: torch.Tensor):
         """Forward pass of MuseEncoder.
@@ -113,31 +204,46 @@ class MuseEncoder(nn.Module):
                 d_model).
         """
 
+        # Don't attend if mask==True
+        pad_mask = ~torch.where(src == self.pad_id, False, True).unsqueeze(-2)
+        pad_mask = pad_mask.unsqueeze(1)
+
         hidden_states = self.tok_embeddings(src)
 
         # Implements gradient checkpoints on Encoder Layers.
-        # TODO: Test that this doesn't change the gradient calculation
-        # TODO: Do profiling for the memory/compute tradeoff
         if self.model_config.grad_checkpoint is True:
             for layer in self.encode_layers:
 
                 def create_custom_forward(module):
-                    def custom_forward(hidden_states):
-                        return module(hidden_states)
+                    def custom_forward(*args):
+                        return module(*args)
 
                     return custom_forward
 
                 hidden_states = torch.utils.checkpoint.checkpoint(
                     create_custom_forward(layer),
                     hidden_states,
+                    pad_mask,
+                    self.freqs_cis,
                     preserve_rng_state=True,
                 )
 
         else:
             for layer in self.encode_layers:
-                hidden_states = layer(hidden_states)
+                hidden_states = layer(hidden_states, pad_mask, self.freqs_cis)
 
         return hidden_states
+
+    # Taken from facebookresearch/llama/model.py
+    def _precompute_freqs_cis(self, dim: int, end: int, theta: float = 10000.0):
+        freqs = 1.0 / (
+            theta ** (torch.arange(0, dim, 2)[: (dim // 2)].float() / dim)
+        )
+        t = torch.arange(end, device=freqs.device)  # type: ignore
+        freqs = torch.outer(t, freqs).float()  # type: ignore
+        freqs_cis = torch.polar(torch.ones_like(freqs), freqs)  # complex64
+
+        return freqs_cis
 
 
 class MuseMaskedLM(nn.Module):
@@ -171,7 +277,17 @@ class MuseMaskedLM(nn.Module):
 
 
 def main():
-    pass
+    conf = ModelConfig()
+    x = torch.ones(4, conf.max_seq_len, dtype=torch.long).cuda()
+    x = 3 * x
+
+    model = MuseMaskedLM(conf).cuda()
+    y = model.forward(x)
+
+    print(x)
+    print(y)
+    print(x.shape)
+    print(y.shape)
 
 
 if __name__ == "__main__":
