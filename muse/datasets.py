@@ -255,18 +255,27 @@ class TrainDataset(torch.utils.data.Dataset):
 
 
 def main():
-    dataset = Dataset.build(
-        "data/raw/mutopia",
-        recur=True,
-        metadata_fn=parse_rdf_metadata,
-        filter_fn=filter_instrument,
-    )
-    dataset.to_json("data/processed/mutopia.json")
-    
+    # dataset = Dataset.build(
+    #    "data/raw/mutopia",
+    #    recur=True,
+    #    metadata_fn=parse_rdf_metadata,
+    #    filter_fn=filter_instrument,
+    # )
+
+    dataset = Dataset.from_json("data/processed/mutopia.json")
     model_config = ModelConfig()
     tokenizer = PretrainTokenizer(model_config)
-    train_dataset = TrainDataset(dataset, tokenizer, split='train')
-    print(len(train_dataset))
+    train_dataset = TrainDataset(dataset, tokenizer, split="train")
+
+    sample = tokenizer.decode(train_dataset[902][1])
+    print(sample)
+
+    p_roll = PianoRoll.from_seq(sample)
+    print(p_roll.roll)
+
+    mid = p_roll.to_midi()
+    mid.save("test.mid")
+
 
 if __name__ == "__main__":
     main()

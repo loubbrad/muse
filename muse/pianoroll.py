@@ -57,6 +57,24 @@ class PianoRoll:
         """
         return midi_to_pianoroll(mid, div)
 
+    @classmethod
+    def from_seq(cls, seq: list):
+        """Encodes sequence"""
+        roll = []
+        meta_data = {"meta_events": {}}
+
+        chord = []
+        for tok in seq:
+            if isinstance(tok, int):
+                chord.append(tok)
+            elif tok == "<T>":
+                roll.append(chord)
+                chord = []
+            else:
+                pass
+
+        return PianoRoll(roll, meta_data)
+
 
 def pianoroll_to_midi(piano_roll: PianoRoll):
     """Parses a PianoRoll object into a mid.MidiFile object.
@@ -88,8 +106,8 @@ def pianoroll_to_midi(piano_roll: PianoRoll):
             )
             on_notes.remove(note)
 
-    ticks_per_step = piano_roll.meta_data["ticks_per_step"]
-    div = piano_roll.meta_data["div"]
+    ticks_per_step = piano_roll.meta_data.get("ticks_per_step", 96)
+    div = piano_roll.meta_data.get("div", 4)
 
     mid = mido.MidiFile(type=1)
     mid.ticks_per_beat = div * ticks_per_step
@@ -101,9 +119,10 @@ def pianoroll_to_midi(piano_roll: PianoRoll):
 
     # Add meta events to meta_track
     meta_track.append(mido.Message("program_change", program=0, time=0))
-    piano_roll.meta_data["meta_events"].sort(key=lambda v: v["time"])
+    if piano_roll.meta_data["meta_events"]:
+        piano_roll.meta_data["meta_events"].sort(key=lambda v: v["time"])
     prev_time = 0
-    for meta_event in piano_roll.meta_data["meta_events"]:
+    for meta_event in piano_roll.meta_data["meta_events"]:  # Will throw err
         meta_track.append(
             mido.MetaMessage(
                 type=meta_event["type"],
