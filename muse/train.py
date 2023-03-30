@@ -16,6 +16,7 @@ class MusePretrainLM(pl.LightningModule):
 
     def __init__(self, model_config: ModelConfig, lr: float):
         super().__init__()
+        self.save_hyperparameters()
 
         self.lr = lr
         self.model = MuseMaskedLM(model_config)
@@ -26,14 +27,13 @@ class MusePretrainLM(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         src, tgt = batch
-
         logits = self.model(src).transpose(1, 2)
         loss = self.loss_fn(logits, tgt)
 
         self.log(
             "train_loss",
             loss,
-            on_step=True,
+            on_step=False,
             on_epoch=True,
             prog_bar=True,
             logger=True,
@@ -43,31 +43,29 @@ class MusePretrainLM(pl.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         src, tgt = batch
-
         logits = self.model(src).transpose(1, 2)
-        loss = self.loss_fn(logits, tgt)
+        loss = self.loss_fn(logits, tgt).item()
 
         self.log(
             "val_loss",
             loss,
+            on_step=False,
             on_epoch=True,
             prog_bar=True,
             logger=True,
         )
-
-        return loss
 
     def configure_optimizers(self):
         return torch.optim.Adam(self.model.parameters(), lr=self.lr)
 
 
 def main():
+    lr = 3e-3
+    batch_size = 16
+
     model_config = ModelConfig()
     tokenizer = PretrainTokenizer(model_config)
     model = MusePretrainLM(model_config, lr=lr)
-
-    lr = 3e-3
-    batch_size = 16
 
     dataset = Dataset.from_json("data/processed/chorale_dataset.json")
     dataset_train = dataset.to_train(tokenizer, split="train")
@@ -140,4 +138,4 @@ def run_overfit_batch():
 
 
 if __name__ == "__main__":
-    run_overfit_batch()
+    main()
