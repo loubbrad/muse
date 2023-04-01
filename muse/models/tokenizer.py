@@ -210,9 +210,9 @@ class PretrainTokenizer(Tokenizer):
             buffer = []
             while (
                 seq[idx] != self.time_tok
-                and seq[idx] != self.eos_tok
-                and seq[idx] != self.bos_tok
-                and seq[idx] != self.pad_tok
+                and seq[idx] != self.eos_tok  # noqa
+                and seq[idx] != self.bos_tok  # noqa
+                and seq[idx] != self.pad_tok  # noqa
             ):
                 buffer.append(seq[idx])
                 idx += 1

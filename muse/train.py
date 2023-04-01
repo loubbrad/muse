@@ -4,6 +4,7 @@ import torch
 from torch import nn as nn
 from torch.utils.data import DataLoader
 import lightning as pl
+from pytorch_lightning.callbacks import ModelCheckpoint
 
 
 from models.model import MuseMaskedLM, ModelConfig
@@ -60,8 +61,8 @@ class MusePretrainLM(pl.LightningModule):
 
 
 def main():
-    lr = 3e-3
-    batch_size = 16
+    lr = 3e-4
+    batch_size = 32
 
     model_config = ModelConfig()
     tokenizer = PretrainTokenizer(model_config)
@@ -73,12 +74,20 @@ def main():
     dl_train = DataLoader(dataset_train, batch_size=batch_size, num_workers=4)
     dl_val = DataLoader(dataset_val, batch_size=batch_size, num_workers=4)
 
+    # See https://shorturl.at/AGHZ3
+    checkpoint_callback = ModelCheckpoint(
+        filename="{epoch}-train{train_loss}-val{val_loss}",
+        save_top_k=5,
+        monitor="val_loss",
+        save_weights_only=True,
+    )
+
     trainer = pl.Trainer(
         devices=1,
         accelerator="gpu",
         precision="16-mixed",
-        enable_checkpointing=False,
         max_epochs=100,
+        callbacks=[checkpoint_callback],
     )
 
     # Train
