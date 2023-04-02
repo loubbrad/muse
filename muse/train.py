@@ -66,12 +66,7 @@ class MusePretrainLM(pl.LightningModule):
 def train(mode: str, checkpoint: Optional[str], epochs: int):
     lr = 3e-4
     batch_size = 32
-
     model_config = ModelConfig()
-    if isinstance(load_path, str):
-        model = MusePretrainLM.load_from_checkpoint(load_path)
-    elif load_path is False:
-        model = MusePretrainLM(model_config, lr=lr)
 
     if mode == "pt":
         tokenizer = PretrainTokenizer(model_config)
@@ -79,6 +74,11 @@ def train(mode: str, checkpoint: Optional[str], epochs: int):
         tokenizer = FinetuneTokenizer(model_config)
     else:
         raise ValueError
+
+    if isinstance(checkpoint, str):
+        model = MusePretrainLM.load_from_checkpoint(checkpoint)
+    elif checkpoint is None:
+        model = MusePretrainLM(model_config, lr=lr)
 
     dataset = Dataset.from_json("data/processed/chorale_dataset.json")
     dataset_train = dataset.to_train(tokenizer, split="train")
@@ -104,6 +104,20 @@ def train(mode: str, checkpoint: Optional[str], epochs: int):
 
     # Train
     trainer.fit(model, dl_train, dl_val)
+
+
+def get_torch_module(load_path: str):
+    """Extracts the PyTorch module from a checkpointed Lightning module.
+
+    Args:
+        load_path (str): Load path for checkpointed Lightning module.
+
+    Returns:
+        nn.Module: Module extracted from self.module
+    """
+    lightning_module = MusePretrainLM.load_from_checkpoint(load_path)
+
+    return lightning_module.model
 
 
 def parse_arguments():

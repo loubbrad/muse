@@ -210,8 +210,8 @@ def midi_to_pianoroll(mid: mido.MidiFile, div: int):
                 for event in meta_events:
                     if (
                         meta_event["type"] == event["type"]
-                        and meta_event["time"] == event["time"]
-                        and meta_event["data"] == event["data"]
+                        and meta_event["time"] == event["time"]  # noqa
+                        and meta_event["data"] == event["data"]  # noqa
                     ):
                         occurred = True
 
