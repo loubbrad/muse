@@ -75,7 +75,7 @@ def train(mode: str, checkpoint: Optional[str], epochs: int):
     else:
         raise ValueError
 
-    if isinstance(checkpoint, str):
+    if isinstance(checkpoint, str) and checkpoint is not None:
         model = MusePretrainLM.load_from_checkpoint(checkpoint)
     elif checkpoint is None:
         model = MusePretrainLM(model_config, lr=lr)
@@ -89,7 +89,7 @@ def train(mode: str, checkpoint: Optional[str], epochs: int):
     # See https://shorturl.at/AGHZ3
     checkpoint_callback = ModelCheckpoint(
         filename="{epoch}-{train_loss}-{val_loss}",
-        save_top_k=5,
+        save_top_k=2,
         monitor="val_loss",
         save_weights_only=True,
     )
@@ -123,7 +123,7 @@ def get_torch_module(load_path: str):
 def parse_arguments():
     argp = argparse.ArgumentParser()
     argp.add_argument("-m", "--mode", choices=["pt", "ft"])
-    argp.add_argument("-c", "--checkpoint", type=str)
+    argp.add_argument("-c", "--checkpoint")
     argp.add_argument("--epochs", type=int)
     kwargs = vars(argp.parse_args())
 
