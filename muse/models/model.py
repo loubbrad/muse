@@ -13,10 +13,10 @@ from dataclasses import dataclass
 class ModelConfig:
     d_model: int = 384
     n_heads: int = 16
-    n_layers: int = 48
+    n_layers: int = 8
     ff_mult: int = 4
     drop_p = 0.1
-    max_seq_len: int = 1024
+    max_seq_len: int = 256
 
     # Set according to tokenizer
     vocab_size: int = -1

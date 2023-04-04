@@ -14,7 +14,7 @@ from progress.bar import Bar
 from pianoroll import PianoRoll
 from mutopia import parse_rdf_metadata, filter_instrument
 from models.model import ModelConfig
-from models.tokenizer import Tokenizer, PretrainTokenizer
+from models.tokenizer import Tokenizer, PretrainTokenizer, FinetuneTokenizer
 
 
 # Refactor this name, it is confusing
@@ -255,26 +255,29 @@ class TrainDataset(torch.utils.data.Dataset):
 
 
 def main():
-    # dataset = Dataset.build(
-    #    "data/raw/mutopia",
-    #    recur=True,
-    #    metadata_fn=parse_rdf_metadata,
-    #    filter_fn=filter_instrument,
-    # )
+    dataset = Dataset.build(
+        "data/raw/by_composer/bach/chorales",
+        recur=True,
+        # metadata_fn=parse_rdf_metadata,
+        # filter_fn=filter_instrument,
+    )
+    dataset.to_json("data/processed/chorale_dataset.json")
 
-    dataset = Dataset.from_json("data/processed/mutopia.json")
     model_config = ModelConfig()
-    tokenizer = PretrainTokenizer(model_config)
+    tokenizer = FinetuneTokenizer(model_config)
     train_dataset = TrainDataset(dataset, tokenizer, split="train")
 
-    sample = tokenizer.decode(train_dataset[902][1])
-    print(sample)
-
-    p_roll = PianoRoll.from_seq(sample)
-    print(p_roll.roll)
-
-    mid = p_roll.to_midi()
-    mid.save("test.mid")
+    while True:
+        i = random.randint(1, 200)
+        seq_enc = train_dataset[i][1]
+        seq_dec = tokenizer.decode(seq_enc)
+        p_roll = PianoRoll.from_seq(seq_dec)
+        print(p_roll.roll[:20])
+        print(seq_dec[:60])
+        print(seq_enc[:60])
+        mid = p_roll.to_midi()
+        mid.save("test.mid")
+        input(".........")
 
 
 if __name__ == "__main__":

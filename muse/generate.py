@@ -18,7 +18,7 @@ from models.tokenizer import FinetuneTokenizer
 class GibbsConfig:
     alpha_max = 1.0
     alpha_min = 0.05
-    num_steps = 250
+    num_steps = 25
     neta = 0.75
 
     temp_max = 1.0
@@ -71,7 +71,7 @@ def gibbs_unmask(
             logits[0, idx, :], dim=1
         )  # Shape (block_size, vocab_len)
 
-        for i in range(idx.shape):
+        for i in range(idx.shape[0]):
             src[idx[i]] = torch.multinomial(probs[i], 1)
 
         return src
@@ -94,7 +94,7 @@ def gibbs_unmask(
         Returns:
             list: seq un-masked.
         """
-        src = torch.tensor(tokenizer.encode(seq))
+        src = tokenizer.encode(seq)
         mask_id = tokenizer.tok_to_id[tokenizer.mask_tok]
         total_to_mask = torch.sum(src == mask_id).item()
 
@@ -131,7 +131,53 @@ def gibbs_unmask(
     if piano_roll is True:
         return pianoroll.PianoRoll.from_seq(seq_unmasked)
     else:
-        return tokenizer.decode(seq_unmasked)
+        return seq_unmasked
+
+
+# Test
+def gibbs_sample(
+    model: MuseMaskedLM, tokenizer: FinetuneTokenizer, seq: torch.Tensor
+):
+    # Hyperparams from 'Counterpoint by Convolution' paper
+    alpha_max = 1.0
+    alpha_min = 0.05
+    num_steps = 250
+    neta = 0.75
+
+    # Hyperparams for temperature scaling
+    temp_max = 1.0
+    temp_min = 0.65
+
+    seq = torch.clone(seq)
+    mask_key = tokenizer.tok_to_id[tokenizer.mask_tok]
+    total_to_mask = torch.sum(seq == mask_key).item()
+    uniform_dist = torch.where(seq == mask_key, 1.0, 0.0)
+    uniform_dist = uniform_dist / torch.linalg.norm(uniform_dist)
+
+    # Gibbs sampling
+    for n in range(num_steps):
+
+        # Calc masking rate and temperature
+        temp = temp_max + n * ((temp_min - temp_max) / (num_steps))
+        mask_prob = max(
+            alpha_min,
+            alpha_max - ((n * (alpha_max - alpha_min)) / (neta * num_steps)),
+        )
+
+        block_size = max(1, math.trunc(mask_prob * total_to_mask))
+        idx = torch.multinomial(uniform_dist, block_size, replacement=False)
+        seq[idx] = mask_key
+        logits = (
+            model.forward(seq.reshape(1, -1)) / temp
+        )  # Shape (1, seq_len, vocab_len)
+        probs = torch.nn.functional.softmax(
+            logits[0, idx, :], dim=1
+        )  # Shape (block_size, vocab_len)
+
+        for i in range(block_size):
+            seq[idx[i]] = torch.multinomial(probs[i], 1)
+
+    return seq
 
 
 def main():
@@ -147,7 +193,15 @@ def main():
     x += ["<P>"] * (model_config.max_seq_len - len(x))
 
     gibbs_config = GibbsConfig()
-    res = gibbs_unmask(x)
+
+    res = gibbs_sample(model, tokenizer, tokenizer.encode(x))
+    # res = gibbs_unmask(
+    #    x,
+    #    model,
+    #    tokenizer,
+    #    gibbs_config,
+    #    piano_roll=False,
+    # )
 
     print(res)
 
