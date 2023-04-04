@@ -151,7 +151,8 @@ class PretrainTokenizer(Tokenizer):
 
     Args:
         model_config (model.ModelConfig): Config for model.
-        device (str): Device to sent PyTorch tensors to send torch.tensors to.
+        mask_p (float): Probability that a token should be masked.
+        pitch_aug_range (bool): Range to randomly augment all notes by.
         note_off_rate (float): Rate to randomly add masked off-notes.
     """
 
@@ -159,24 +160,21 @@ class PretrainTokenizer(Tokenizer):
         self,
         model_config: ModelConfig,
         return_tensors: bool = True,
+        mask_p: float = 0.15,
+        pitch_aug_range: int = 4,
         note_off_rate: float = 0.05,
     ):
         super().__init__(model_config, return_tensors)
 
         self.note_off_rate = note_off_rate
+        self.mask_p = mask_p
+        self.pitch_aug_range = pitch_aug_range
 
-    def apply(
-        self,
-        seq: list,
-        mask_p: float = 0.15,
-        pitch_aug_range: int = 4,
-    ):
+    def apply(self, seq: list):
         """Applies random masking (in place) on piano-roll sequence.
 
         Args:
             seq (list): Sequences to be randomly masked.
-            mask_p (float): Probability that a token should be masked.
-            pitch_aug_range (bool): Range to randomly augment all notes by.
 
         Returns:
             list: Sequences after appropriate masking.
@@ -186,7 +184,7 @@ class PretrainTokenizer(Tokenizer):
             """Appends chord to src and tgt."""
             for tok in chord:
                 if isinstance(tok, int):
-                    if random.uniform(0, 1) < mask_p:
+                    if random.uniform(0, 1) < self.mask_p:
                         src.append(self.mask_tok)
                         tgt.append(tok + pitch_aug)
                     else:
@@ -197,7 +195,7 @@ class PretrainTokenizer(Tokenizer):
                     tgt.append(self.off_tok)
 
         src, tgt = [], []
-        pitch_aug = random.randint(-pitch_aug_range, pitch_aug_range)
+        pitch_aug = random.randint(-self.pitch_aug_range, self.pitch_aug_range)
 
         idx = 0
         while idx < self.max_seq_len:
@@ -232,7 +230,7 @@ class FinetuneTokenizer(Tokenizer):
 
     Args:
         model_config (model.ModelConfig): Config for model.
-        device (str): Device to sent PyTorch tensors to send torch.tensors to.
+        pitch_aug_range (bool): Range to randomly augment all notes by.
         note_off_rate (float): Rate to randomly add masked off-notes.
     """
 
@@ -240,26 +238,22 @@ class FinetuneTokenizer(Tokenizer):
         self,
         model_config: ModelConfig,
         return_tensors: bool = True,
+        pitch_aug_range: int = 4,
         note_off_rate: float = 0.05,
     ):
         super().__init__(model_config, return_tensors)
 
         self.note_off_rate = note_off_rate
+        self.pitch_aug_range = pitch_aug_range
         self.dist = torch.distributions.beta.Beta(2, 6)
 
-    def apply(
-        self,
-        seq: list,
-        pitch_aug_range: int = 4,
-    ):
+    def apply(self, seq: list):
         """Applies random masking (in place) on piano-roll sequence.
 
         Masking probability is determined by a beta distribution.
 
         Args:
             seq (list): Sequences to be randomly masked.
-            mask_p (float): Probability that a token should be masked.
-            pitch_aug_range (bool): Range to randomly augment all notes by.
 
         Returns:
             list: Sequences after appropriate masking.
@@ -281,7 +275,7 @@ class FinetuneTokenizer(Tokenizer):
 
         mask_p = self.dist.sample().item()
         src, tgt = [], []
-        pitch_aug = random.randint(-pitch_aug_range, pitch_aug_range)
+        pitch_aug = random.randint(-self.pitch_aug_range, self.pitch_aug_range)
 
         idx = 0
         while idx < self.max_seq_len:
