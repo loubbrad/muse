@@ -162,7 +162,7 @@ class PretrainTokenizer(Tokenizer):
         return_tensors: bool = True,
         mask_p: float = 0.15,
         pitch_aug_range: int = 4,
-        note_off_rate: float = 0.05,
+        note_off_rate: float = 0.0,
     ):
         super().__init__(model_config, return_tensors)
 
@@ -212,7 +212,7 @@ class PretrainTokenizer(Tokenizer):
 
             # Perform shuffling, pitch augmenting, and masking
             if buffer:
-                random.shuffle(buffer)  # Randomly shuffle chord
+                buffer.sort()
                 _mask_aug_chord(buffer, src, tgt)
 
             # Append time_tok, bos_tok, eos_tok, or pad_tok
@@ -239,7 +239,7 @@ class FinetuneTokenizer(Tokenizer):
         model_config: ModelConfig,
         return_tensors: bool = True,
         pitch_aug_range: int = 4,
-        note_off_rate: float = 0.05,
+        note_off_rate: float = 0.0,
     ):
         super().__init__(model_config, return_tensors)
 
@@ -292,7 +292,7 @@ class FinetuneTokenizer(Tokenizer):
 
             # Perform shuffling, pitch augmenting, and masking
             if buffer:
-                random.shuffle(buffer)  # Randomly shuffle chord
+                buffer.sort()
                 _mask_aug_chord(buffer, src, tgt)
 
             # Append time_tok, bos_tok, eos_tok, or pad_tok

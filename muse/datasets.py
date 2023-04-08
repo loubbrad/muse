@@ -256,12 +256,12 @@ class TrainDataset(torch.utils.data.Dataset):
 
 def main():
     dataset = Dataset.build(
-        "data/raw/by_composer/bach/chorales",
+        "data/raw/by_composer/bach/wtci_andother",
         recur=True,
         # metadata_fn=parse_rdf_metadata,
         # filter_fn=filter_instrument,
     )
-    dataset.to_json("data/processed/chorale_dataset.json")
+    dataset.to_json("data/processed/fugue_dataset.json")
 
     model_config = ModelConfig()
     tokenizer = FinetuneTokenizer(model_config)
