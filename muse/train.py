@@ -80,16 +80,27 @@ def train(mode: str, checkpoint: Optional[str], epochs: int):
     elif checkpoint is None:
         model = MusePretrainLM(model_config, lr=lr)
 
-    dataset = Dataset.from_json("data/processed/chorale_dataset.json")
+    dataset = Dataset.from_json("data/processed/cpoint_chorales.json")
     dataset_train = dataset.to_train(tokenizer, split="train")
     dataset_val = dataset.to_train(tokenizer, split="test")
     dl_train = DataLoader(dataset_train, batch_size=batch_size, num_workers=4)
     dl_val = DataLoader(dataset_val, batch_size=batch_size, num_workers=4)
 
+    # DEBUG
+    # import pianoroll
+
+    # x = tokenizer.decode(dataset_train[60][1])
+    # print(x)
+    # roll = pianoroll.PianoRoll.from_seq(x)
+    # print(roll.roll)
+    # midi = roll.to_midi()
+    # midi.save("test.mid")
+    # raise Exception
+
     # See https://shorturl.at/AGHZ3
     checkpoint_callback = ModelCheckpoint(
         filename="{epoch}-{train_loss}-{val_loss}",
-        save_top_k=2,
+        save_top_k=5,
         monitor="val_loss",
         save_weights_only=True,
     )

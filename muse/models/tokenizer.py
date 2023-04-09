@@ -160,7 +160,7 @@ class PretrainTokenizer(Tokenizer):
         self,
         model_config: ModelConfig,
         return_tensors: bool = True,
-        mask_p: float = 0.15,
+        mask_p: float = 0.20,
         pitch_aug_range: int = 4,
         note_off_rate: float = 0.0,
     ):
@@ -245,7 +245,8 @@ class FinetuneTokenizer(Tokenizer):
 
         self.note_off_rate = note_off_rate
         self.pitch_aug_range = pitch_aug_range
-        self.dist = torch.distributions.beta.Beta(2, 6)
+        # self.dist = torch.distributions.beta.Beta(2, 6)
+        self.dist = torch.distributions.uniform.Uniform(0.0, 0.75)
 
     def apply(self, seq: list):
         """Applies random masking (in place) on piano-roll sequence.

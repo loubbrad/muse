@@ -15,7 +15,7 @@ class ModelConfig:
     n_heads: int = 16
     n_layers: int = 12
     ff_mult: int = 4
-    drop_p = 0.1
+    drop_p = 0.0
     max_seq_len: int = 512
 
     # Set according to tokenizer
@@ -113,17 +113,13 @@ class ManualEncoderBlock(nn.Module):
         self.norm1 = nn.LayerNorm(model_config.d_model)
         self.norm2 = nn.LayerNorm(model_config.d_model)
 
-    def forward(
-        self, x: torch.Tensor, pad_mask: torch.Tensor, freqs_cis: torch.Tensor
-    ):
-        x = x + self._att_block(self.norm1(x), pad_mask, freqs_cis)
+    def forward(self, x: torch.Tensor, freqs_cis: torch.Tensor):
+        x = x + self._att_block(self.norm1(x), freqs_cis)
         x = x + self._ff_block(self.norm2(x))
 
         return x
 
-    def _att_block(
-        self, x: torch.Tensor, pad_mask: torch.Tensor, freqs_cis: torch.Tensor
-    ):
+    def _att_block(self, x: torch.Tensor, freqs_cis: torch.Tensor):
         batch_size, seq_len, _ = x.shape
         xq, xk, xv = self.q(x), self.k(x), self.v(x)
 
@@ -142,7 +138,6 @@ class ManualEncoderBlock(nn.Module):
         # (b_sz, n_head, s_len, d_head) @ (b_sz, n_head, d_head, s_len)
         #  = (b_sz, n_head, s_len, s_len)
         att = (xq @ xk.transpose(2, 3)) / math.sqrt(self.d_head)
-        att = att.masked_fill(pad_mask == False, -float("inf"))  # noqa
         att = F.softmax(att, dim=-1)
         att = self.att_dropout(att)
 
@@ -223,17 +218,13 @@ class FusedEncoderBlock(nn.Module):
         self.norm1 = nn.LayerNorm(model_config.d_model)
         self.norm2 = nn.LayerNorm(model_config.d_model)
 
-    def forward(
-        self, x: torch.Tensor, pad_mask: torch.Tensor, freqs_cis: torch.Tensor
-    ):
-        x = x + self._att_block(self.norm1(x), pad_mask, freqs_cis)
+    def forward(self, x: torch.Tensor, freqs_cis: torch.Tensor):
+        x = x + self._att_block(self.norm1(x), freqs_cis)
         x = x + self._ff_block(self.norm2(x))
 
         return x
 
-    def _att_block(
-        self, x: torch.Tensor, pad_mask: torch.Tensor, freqs_cis: torch.Tensor
-    ):
+    def _att_block(self, x: torch.Tensor, freqs_cis: torch.Tensor):
         batch_size, seq_len, _ = x.shape
         xq, xk, xv = self.q(x), self.k(x), self.v(x)
 
@@ -260,7 +251,6 @@ class FusedEncoderBlock(nn.Module):
             query=xq,
             key=xk,
             value=xv,
-            attn_mask=pad_mask,
             dropout_p=att_dropout,
             is_causal=False,
         )
@@ -319,11 +309,6 @@ class MuseEncoder(nn.Module):
             torch.tensor: Model outputs with shape (batch_size, seq_len,
                 d_model).
         """
-
-        # True indicates tok should be attended to (torch convention)
-        pad_mask = torch.where(src == self.pad_id, False, True).unsqueeze(-2)
-        pad_mask = pad_mask.unsqueeze(1)
-
         hidden_states = self.tok_embeddings(src)
 
         # Implements gradient checkpoints on Encoder Layers.
@@ -339,14 +324,13 @@ class MuseEncoder(nn.Module):
                 hidden_states = torch.utils.checkpoint.checkpoint(
                     create_custom_forward(layer),
                     hidden_states,
-                    pad_mask,
                     self.freqs_cis,
                     preserve_rng_state=True,
                 )
 
         else:
             for layer in self.encode_layers:
-                hidden_states = layer(hidden_states, pad_mask, self.freqs_cis)
+                hidden_states = layer(hidden_states, self.freqs_cis)
 
         return hidden_states
 
