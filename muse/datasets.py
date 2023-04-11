@@ -17,7 +17,6 @@ from models.model import ModelConfig
 from models.tokenizer import Tokenizer, PretrainTokenizer, FinetuneTokenizer
 
 
-# Refactor this name, it is confusing
 class PianoRollDataset:
     """Container for datasets of PianoRoll objects.
 
@@ -253,6 +252,7 @@ class TrainDataset(torch.utils.data.Dataset):
         tokenizer: Tokenizer,
         split: str,
     ):
+        """Uses tokenizer.seq() to sequentialise dataset."""
         data = []
         if split == "train":
             for piano_roll in dataset.train:
