@@ -11,19 +11,19 @@ from dataclasses import dataclass
 
 @dataclass
 class ModelConfig:
-    d_model: int = 384
-    n_heads: int = 16
-    n_layers: int = 12
+    d_model: int = 528
+    n_heads: int = 22
+    n_layers: int = 8
     ff_mult: int = 4
     drop_p = 0.0
-    max_seq_len: int = 512
+    max_seq_len: int = 320
 
     # Set according to tokenizer
     vocab_size: int = -1
     pad_id: int = -1
     mask_id: int = -1
 
-    grad_checkpoint: bool = True
+    grad_checkpoint: bool = False
     att_mask: bool = None
 
 
@@ -344,6 +344,56 @@ class MuseEncoder(nn.Module):
         freqs_cis = torch.polar(torch.ones_like(freqs), freqs)  # complex64
 
         return freqs_cis
+
+
+class ChoraleEncoder(nn.Module):
+    """Test"""
+
+    def __init__(self, config: ModelConfig):
+        super(ChoraleEncoder, self).__init__()
+        self.seq_len = config.max_seq_len
+        self.vocab_len = config.vocab_size
+        self.emb_dim = config.d_model
+        self.ff_dim = config.d_model * config.ff_mult
+        self.pad_idx = config.pad_id
+        self.n_heads = config.n_heads
+        self.n_layers = config.n_layers
+
+        # Input layer
+        self.pos_emb = nn.Embedding(self.seq_len, self.emb_dim)
+        self.key_embed = nn.Embedding(
+            self.vocab_len, self.emb_dim, padding_idx=self.pad_idx
+        )  # pad_idx required?
+
+        # Transformer
+        self.encoder_layer = nn.TransformerEncoderLayer(
+            self.emb_dim,
+            self.n_heads,
+            self.ff_dim,
+            dropout=0.0,
+            batch_first=True,
+        )
+        self.encoder = nn.TransformerEncoder(self.encoder_layer, self.n_layers)
+
+    def forward(self, seq: torch.tensor):
+        """Forward pass for model.
+        Args:
+            seq: torch.tensor of shape (#batches, seq_len).
+        Returns:
+            logits: torch.tensor of shape (#batches, seq_len, vocab_len).
+        """
+
+        # Embed and encode
+        pos = torch.arange(0, self.seq_len, dtype=torch.long).to(seq.device)
+        pad_mask = seq == self.pad_idx  # Shape (#batches, seq_len)
+        emb = self.key_embed(seq) + self.pos_emb(
+            pos
+        )  # Shape (#batches, seq_len, emb_dim) + (1, seq_len, emb_dim)
+        enc = self.encoder(
+            src=emb, src_key_padding_mask=pad_mask
+        )  # Shape (#batches, seq_len, emb_dim)
+
+        return enc
 
 
 class MuseMaskedLM(nn.Module):

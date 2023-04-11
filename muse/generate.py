@@ -22,7 +22,7 @@ class GibbsConfig:
     neta = 0.75
 
     temp_max = 1.0
-    temp_min = 0.7
+    temp_min = 0.65
 
 
 # def gibbs_unmask(
@@ -197,8 +197,58 @@ def gibbs_unmask(
         return tokenizer.decode(seq)
 
 
+def gibbs_sample(model, tokenizer: FinetuneTokenizer, seq: torch.tensor):
+    """Generates samples according to a simplistic gibbs sampling procedure.
+    Args:
+        model: ChoraleBertModel instance to use to create samples.
+        dataset: ChoraleDataset class to get encode decode functions from.
+        seq: torch.tensor of encoded prompt to be harmonised.
+    Returns:
+        seq: torch.tensor of sequence harmonised using gibbs sampling.
+    """
+    # Hyperparams from 'Counterpoint by Convolution' paper
+    alpha_max = 1.0
+    alpha_min = 0.05
+    num_steps = 500
+    neta = 0.4
+
+    # Hyperparams for tempertature scaling
+    temp_max = 1.0
+    temp_min = 0.8
+
+    seq = torch.clone(seq)
+    mask_key = tokenizer.tok_to_id["<M>"]
+    total_to_mask = torch.sum(seq == mask_key).item()
+    uniform_dist = torch.where(seq == mask_key, 1.0, 0.0)
+    uniform_dist = uniform_dist / torch.linalg.norm(uniform_dist)
+
+    # Gibbs sampling
+    for n in range(num_steps):
+        # Calc masking rate and temperature
+        temp = temp_max + n * ((temp_min - temp_max) / (num_steps))
+        mask_prob = max(
+            alpha_min,
+            alpha_max - ((n * (alpha_max - alpha_min)) / (neta * num_steps)),
+        )
+
+        block_size = max(1, math.trunc(mask_prob * total_to_mask))
+        idx = torch.multinomial(uniform_dist, block_size, replacement=False)
+        seq[idx] = mask_key
+        logits = (
+            model.forward(seq.reshape(1, -1)) / temp
+        )  # Shape (1, seq_len, vocab_len)
+        probs = torch.nn.functional.softmax(
+            logits[0, idx, :], dim=1
+        )  # Shape (block_size, vocab_len)
+
+        for i in range(block_size):
+            seq[idx[i]] = torch.multinomial(probs[i], 1)
+
+    return seq
+
+
 def main():
-    load_path = "lightning_logs/version_1/checkpoints/epoch=96-train_loss=0.09341955929994583-val_loss=0.08198588341474533.ckpt"
+    load_path = "lightning_logs/version_0/checkpoints/epoch=995-train_loss=0.04110196232795715-val_loss=0.044752512127161026.ckpt"
 
     model_config = ModelConfig()
     tokenizer = FinetuneTokenizer(model_config)
@@ -207,19 +257,21 @@ def main():
     num_notes = math.floor((model_config.max_seq_len - 3) / 5)
 
     for i in range(10):
-        x = ["<T>"] + ["<M>", "<M>", "<M>", "<M>", "<T>"] * num_notes
-        x.pop()
-        x.append("<E>")
+        x = ["<M>", "<M>", "<M>", "<M>", "<T>"] * num_notes
+        x[-1] = "<E>"
         x += ["<P>"] * (model_config.max_seq_len - len(x))
 
         gibbs_config = GibbsConfig()
-        res_dec = gibbs_unmask(
-            x,
-            model,
-            tokenizer,
-            gibbs_config,
-            piano_roll=False,
-        )
+        # res_dec = gibbs_unmask(
+        #    x,
+        #    model,
+        #    tokenizer,
+        #    gibbs_config,
+        #    piano_roll=False,
+        # )
+
+        res_enc = gibbs_sample(model, tokenizer, tokenizer.encode(x).cuda())
+        res_dec = tokenizer.decode(res_enc)
 
         print(res_dec)
         print(len(res_dec))

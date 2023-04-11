@@ -64,8 +64,8 @@ class MusePretrainLM(pl.LightningModule):
 
 
 def train(mode: str, checkpoint: Optional[str], epochs: int):
-    lr = 3e-4
-    batch_size = 32
+    lr = 1e-4
+    batch_size = 64
     model_config = ModelConfig()
 
     if mode == "pt":
@@ -101,7 +101,7 @@ def train(mode: str, checkpoint: Optional[str], epochs: int):
     checkpoint_callback = ModelCheckpoint(
         filename="{epoch}-{train_loss}-{val_loss}",
         save_top_k=5,
-        monitor="val_loss",
+        monitor="train_loss",
         save_weights_only=True,
     )
 

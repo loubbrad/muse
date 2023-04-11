@@ -2,6 +2,7 @@
 piano-roll datasets."""
 
 import json
+import math
 import logging
 import random
 import mido

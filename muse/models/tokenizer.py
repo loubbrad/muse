@@ -19,6 +19,7 @@ class Tokenizer:
     def __init__(self, model_config: ModelConfig, return_tensors: bool = True):
         self.max_seq_len = model_config.max_seq_len
         self.return_tensors = return_tensors
+        self.note_off_rate = 0.0
 
         self.eos_tok = "<E>"
         self.bos_tok = "<S>"
@@ -68,10 +69,10 @@ class Tokenizer:
             """Sequentialises roll backwards, modifying roll inplace."""
             # Add bos token if beginning is True
             if beginning is True:
-                roll.insert(0, [self.bos_tok])
+                seq = [self.bos_tok]
+            else:
+                seq = []
 
-            # Sequentialise up to self.max_seq_len
-            seq = []
             # -3 counts for a possible off_tok, time_tok, and eos_tok
             while roll and (len(seq) + len(roll[0]) <= self.max_seq_len - 3):
                 for note in roll.pop(0):  # Modifies roll inplace
@@ -162,11 +163,9 @@ class PretrainTokenizer(Tokenizer):
         return_tensors: bool = True,
         mask_p: float = 0.20,
         pitch_aug_range: int = 4,
-        note_off_rate: float = 0.0,
     ):
         super().__init__(model_config, return_tensors)
 
-        self.note_off_rate = note_off_rate
         self.mask_p = mask_p
         self.pitch_aug_range = pitch_aug_range
 
@@ -231,22 +230,19 @@ class FinetuneTokenizer(Tokenizer):
     Args:
         model_config (model.ModelConfig): Config for model.
         pitch_aug_range (bool): Range to randomly augment all notes by.
-        note_off_rate (float): Rate to randomly add masked off-notes.
     """
 
     def __init__(
         self,
         model_config: ModelConfig,
         return_tensors: bool = True,
-        pitch_aug_range: int = 4,
-        note_off_rate: float = 0.0,
+        pitch_aug_range: int = 6,
     ):
         super().__init__(model_config, return_tensors)
 
-        self.note_off_rate = note_off_rate
         self.pitch_aug_range = pitch_aug_range
-        # self.dist = torch.distributions.beta.Beta(2, 6)
-        self.dist = torch.distributions.uniform.Uniform(0.0, 0.75)
+        # self.dist = torch.distributions.beta.Beta(1.8, 3)
+        self.dist = torch.distributions.uniform.Uniform(0.0, 0.9)
 
     def apply(self, seq: list):
         """Applies random masking (in place) on piano-roll sequence.
@@ -262,9 +258,10 @@ class FinetuneTokenizer(Tokenizer):
 
         def _mask_aug_chord(chord: list, src: list, tgt: list):
             """Appends chord to src and tgt."""
-            for tok in chord:
+            ignore_ind = random.randint(0, len(chord) - 1)  # always keep one
+            for i, tok in enumerate(chord):
                 if isinstance(tok, int):
-                    if random.uniform(0, 1) < mask_p:
+                    if random.uniform(0, 1) < mask_p and i != ignore_ind:
                         src.append(self.mask_tok)
                         tgt.append(tok + pitch_aug)
                     else:
