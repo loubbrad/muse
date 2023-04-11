@@ -51,7 +51,6 @@ class Tokenizer:
         model_config.pad_id = self.tok_to_id[self.pad_tok]
         model_config.mask_id = self.tok_to_id[self.mask_tok]
 
-    # TODO: Remove starting silence.
     def seq(self, piano_roll: PianoRoll):
         """Sequentialise a PianoRoll object into a list (for pre-training).
 
@@ -162,7 +161,7 @@ class PretrainTokenizer(Tokenizer):
         model_config: ModelConfig,
         return_tensors: bool = True,
         mask_p: float = 0.20,
-        pitch_aug_range: int = 4,
+        pitch_aug_range: int = 6,
     ):
         super().__init__(model_config, return_tensors)
 
@@ -256,6 +255,7 @@ class FinetuneTokenizer(Tokenizer):
             list: Sequences after appropriate masking.
         """
 
+        # TODO: Update this for generative objective.
         def _mask_aug_chord(chord: list, src: list, tgt: list):
             """Appends chord to src and tgt."""
             ignore_ind = random.randint(0, len(chord) - 1)  # always keep one
@@ -267,7 +267,7 @@ class FinetuneTokenizer(Tokenizer):
                     else:
                         src.append(tok + pitch_aug)
                         tgt.append(tok + pitch_aug)
-                elif tok == self.off_tok:
+                elif tok == self.off_tok:  ## Update this
                     src.append(self.mask_tok)
                     tgt.append(self.off_tok)
 

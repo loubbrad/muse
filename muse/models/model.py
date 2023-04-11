@@ -347,7 +347,7 @@ class MuseEncoder(nn.Module):
 
 
 class ChoraleEncoder(nn.Module):
-    """Test"""
+    """Old counterpoint encoder, for testing purposes."""
 
     def __init__(self, config: ModelConfig):
         super(ChoraleEncoder, self).__init__()
@@ -376,13 +376,6 @@ class ChoraleEncoder(nn.Module):
         self.encoder = nn.TransformerEncoder(self.encoder_layer, self.n_layers)
 
     def forward(self, seq: torch.tensor):
-        """Forward pass for model.
-        Args:
-            seq: torch.tensor of shape (#batches, seq_len).
-        Returns:
-            logits: torch.tensor of shape (#batches, seq_len, vocab_len).
-        """
-
         # Embed and encode
         pos = torch.arange(0, self.seq_len, dtype=torch.long).to(seq.device)
         pad_mask = seq == self.pad_idx  # Shape (#batches, seq_len)

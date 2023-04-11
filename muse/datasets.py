@@ -2,7 +2,6 @@
 piano-roll datasets."""
 
 import json
-import math
 import logging
 import random
 import mido
@@ -19,7 +18,7 @@ from models.tokenizer import Tokenizer, PretrainTokenizer, FinetuneTokenizer
 
 
 # Refactor this name, it is confusing
-class Dataset:
+class PianoRollDataset:
     """Container for datasets of PianoRoll objects.
 
     Args:
@@ -50,7 +49,7 @@ class Dataset:
             device (str): Device to send tensors to on __getitem__().
             split (str): Whether to use train or test set.
         """
-        return TrainDataset(self, tokenizer, split)
+        return TrainDataset.from_pianoroll_dataset(self, tokenizer, split)
 
     def to_json(self, save_path: str):
         """Saves dataset according to specified path.
@@ -89,7 +88,7 @@ class Dataset:
         for entry in data["test"]:
             test.append(PianoRoll(**entry))
 
-        return Dataset(train, test, meta_data)
+        return PianoRollDataset(train, test, meta_data)
 
     @classmethod
     def build(
@@ -208,7 +207,9 @@ def build_dataset(
     random.shuffle(p_roll_unsplit)
     split_ind = round(tt_split * len(p_roll_unsplit))
 
-    return Dataset(p_roll_unsplit[:split_ind], p_roll_unsplit[split_ind:])
+    return PianoRollDataset(
+        p_roll_unsplit[:split_ind], p_roll_unsplit[split_ind:]
+    )
 
 
 class TrainDataset(torch.utils.data.Dataset):
@@ -226,22 +227,13 @@ class TrainDataset(torch.utils.data.Dataset):
 
     def __init__(
         self,
-        dataset: Dataset,
         tokenizer: Tokenizer,
-        split: str,
+        data: list = [],
     ):
-        self.tokenizer = tokenizer
+        super().__init__()
 
-        if split == "train":
-            self.data = []
-            for piano_roll in dataset.train:
-                self.data += tokenizer.seq(piano_roll)
-        elif split == "test":
-            self.data = []
-            for piano_roll in dataset.test:
-                self.data += tokenizer.seq(piano_roll)
-        else:
-            raise ValueError("Invalid value for split.")
+        self.tokenizer = tokenizer
+        self.data = data
 
     def __len__(self):
         return len(self.data)
@@ -254,9 +246,40 @@ class TrainDataset(torch.utils.data.Dataset):
 
         return src_enc, tgt_enc
 
+    @classmethod
+    def from_pianoroll_dataset(
+        cls,
+        dataset: PianoRollDataset,
+        tokenizer: Tokenizer,
+        split: str,
+    ):
+        data = []
+        if split == "train":
+            for piano_roll in dataset.train:
+                data += tokenizer.seq(piano_roll)
+        elif split == "test":
+            for piano_roll in dataset.test:
+                data += tokenizer.seq(piano_roll)
+        else:
+            raise ValueError("Invalid value for split.")
+
+        return TrainDataset(tokenizer, data)
+
+    @classmethod
+    def from_json(
+        cls,
+        load_path: str,
+        tokenizer: Tokenizer,
+        split: str,
+    ):
+        with open(load_path) as f:
+            raw_data = json.load(f)
+
+        return TrainDataset(tokenizer, raw_data[split])
+
 
 def main():
-    dataset = Dataset.build(
+    dataset = PianoRollDataset.build(
         "data/raw/by_composer/bach/wtci_andother",
         recur=True,
         # metadata_fn=parse_rdf_metadata,

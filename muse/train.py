@@ -12,7 +12,7 @@ from lightning.pytorch.callbacks import ModelCheckpoint
 
 from models.model import MuseMaskedLM, ModelConfig
 from models.tokenizer import PretrainTokenizer, FinetuneTokenizer
-from datasets import Dataset
+from datasets import PianoRollDataset
 
 
 class MusePretrainLM(pl.LightningModule):
@@ -80,22 +80,11 @@ def train(mode: str, checkpoint: Optional[str], epochs: int):
     elif checkpoint is None:
         model = MusePretrainLM(model_config, lr=lr)
 
-    dataset = Dataset.from_json("data/processed/cpoint_chorales.json")
+    dataset = PianoRollDataset.from_json("data/processed/cpoint_chorales.json")
     dataset_train = dataset.to_train(tokenizer, split="train")
-    dataset_val = dataset.to_train(tokenizer, split="test")
+    dataset_test = dataset.to_train(tokenizer, split="test")
     dl_train = DataLoader(dataset_train, batch_size=batch_size, num_workers=4)
-    dl_val = DataLoader(dataset_val, batch_size=batch_size, num_workers=4)
-
-    # DEBUG
-    # import pianoroll
-
-    # x = tokenizer.decode(dataset_train[60][1])
-    # print(x)
-    # roll = pianoroll.PianoRoll.from_seq(x)
-    # print(roll.roll)
-    # midi = roll.to_midi()
-    # midi.save("test.mid")
-    # raise Exception
+    dl_test = DataLoader(dataset_test, batch_size=batch_size, num_workers=4)
 
     # See https://shorturl.at/AGHZ3
     checkpoint_callback = ModelCheckpoint(
@@ -114,7 +103,7 @@ def train(mode: str, checkpoint: Optional[str], epochs: int):
     )
 
     # Train
-    trainer.fit(model, dl_train, dl_val)
+    trainer.fit(model, dl_train, dl_test)
 
 
 def get_torch_module(load_path: str):
