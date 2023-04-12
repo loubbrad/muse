@@ -16,7 +16,7 @@ class PianoRoll:
 
     def __init__(self, roll: list = [], meta_data: dict = {"meta_events": {}}):
         """Initialises PianoRoll with data and metadata."""
-        self.roll = roll
+        self.roll = [sorted(chord) for chord in roll]
         self.meta_data = meta_data
 
     def add_metadata(self, meta_data: dict):
@@ -119,7 +119,7 @@ def pianoroll_to_midi(piano_roll: PianoRoll):
 
     # Add meta events to meta_track
     meta_track.append(mido.Message("program_change", program=0, time=0))
-    meta_track.append(mido.MetaMessage("set_tempo", tempo=1_000_000, time=0))
+    # meta_track.append(mido.MetaMessage("set_tempo", tempo=1_000_000, time=0))
     if piano_roll.meta_data["meta_events"]:
         piano_roll.meta_data["meta_events"].sort(key=lambda v: v["time"])
     prev_time = 0

@@ -210,7 +210,6 @@ class PretrainTokenizer(Tokenizer):
 
             # Perform shuffling, pitch augmenting, and masking
             if buffer:
-                buffer.sort()
                 _mask_aug_chord(buffer, src, tgt)
 
             # Append time_tok, bos_tok, eos_tok, or pad_tok
@@ -290,7 +289,6 @@ class FinetuneTokenizer(Tokenizer):
 
             # Perform shuffling, pitch augmenting, and masking
             if buffer:
-                buffer.sort()  # Won't be needed for chorale/fugue
                 _mask_aug_chord(buffer, src, tgt)
 
             # Append time_tok, bos_tok, eos_tok, or pad_tok

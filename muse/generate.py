@@ -89,7 +89,7 @@ def main():
     load_path = ""
 
     model_config = ModelConfig()
-    tokenizer = FinetuneTokenizer(model_config)
+    tokenizer = Tokenizer(model_config)
     model = get_torch_module(load_path).cuda()
     model.eval()
 

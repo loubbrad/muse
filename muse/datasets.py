@@ -280,28 +280,32 @@ class TrainDataset(torch.utils.data.Dataset):
 
 def main():
     dataset = PianoRollDataset.build(
-        "data/raw/by_composer/bach/wtci_andother",
+        "data/raw/by_composer/bach",
         recur=True,
         # metadata_fn=parse_rdf_metadata,
         # filter_fn=filter_instrument,
     )
-    dataset.to_json("data/processed/fugue_dataset.json")
+    dataset.to_json("data/processed/other.json")
+    # dataset = PianoRollDataset.from_json("data/processed/other.json")
 
     model_config = ModelConfig()
+    model_config.max_seq_len = 2096
     tokenizer = FinetuneTokenizer(model_config)
-    train_dataset = TrainDataset(dataset, tokenizer, split="train")
+    train_dataset = TrainDataset.from_pianoroll_dataset(
+        dataset,
+        tokenizer,
+        split="train",
+    )
+    print(len(train_dataset))
 
     while True:
-        i = random.randint(1, 200)
+        i = random.randint(1, 2000)
         seq_enc = train_dataset[i][1]
         seq_dec = tokenizer.decode(seq_enc)
         p_roll = PianoRoll.from_seq(seq_dec)
-        print(p_roll.roll[:20])
-        print(seq_dec[:60])
-        print(seq_enc[:60])
         mid = p_roll.to_midi()
         mid.save("test.mid")
-        input(".........")
+        input("...")
 
 
 if __name__ == "__main__":
