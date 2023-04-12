@@ -16,7 +16,7 @@ class ModelConfig:
     n_layers: int = 8
     ff_mult: int = 4
     drop_p = 0.0
-    max_seq_len: int = 1024
+    max_seq_len: int = 512
     stride_len: int = 64
 
     # Set according to tokenizer
@@ -25,7 +25,7 @@ class ModelConfig:
     mask_id: int = -1
 
     grad_checkpoint: bool = False
-    use_casual_mask: bool = False
+    use_casual_mask: bool = True
 
 
 # Taken from facebookresearch/llama/model.py

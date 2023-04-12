@@ -11,7 +11,11 @@ from lightning.pytorch.callbacks import ModelCheckpoint
 
 
 from models.model import MuseMaskedLM, ModelConfig
-from models.tokenizer import MaskedLMPretrainTokenizer, ChoraleTokenizer
+from models.tokenizer import (
+    MaskedLMPretrainTokenizer,
+    CasualPretrainTokenizer,
+    ChoraleTokenizer,
+)
 from datasets import PianoRollDataset
 
 
@@ -69,7 +73,7 @@ def train(mode: str, checkpoint: Optional[str], epochs: int):
     model_config = ModelConfig()
 
     if mode == "pt":
-        tokenizer = MaskedLMPretrainTokenizer(model_config)
+        tokenizer = CasualPretrainTokenizer(model_config)
     elif mode == "ft":
         tokenizer = ChoraleTokenizer(model_config)
     else:
