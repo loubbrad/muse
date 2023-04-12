@@ -96,7 +96,7 @@ def main():
     num_notes = math.floor((model_config.max_seq_len - 3) / 5)
     prompt = ["<M>", "<M>", "<M>", "<M>", "<T>"] * num_notes
     prompt[-1] = "<E>"
-    prompt += ["<P>"] * (model_config.max_seq_len - len(x))
+    prompt += ["<P>"] * (model_config.max_seq_len - len(prompt))
 
     for i in range(10):
         gibbs_config = GibbsConfig()

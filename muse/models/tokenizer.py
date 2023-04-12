@@ -18,6 +18,7 @@ class Tokenizer:
 
     def __init__(self, model_config: ModelConfig, return_tensors: bool = True):
         self.max_seq_len = model_config.max_seq_len
+        self.stride_len = model_config.stride_len
         self.return_tensors = return_tensors
         self.note_off_rate = 0.0
 
@@ -64,7 +65,7 @@ class Tokenizer:
             list[list]: A collection of lists of sequentialised piano-roll.
         """
 
-        def _get_seq(roll: list, beginning: bool = False):
+        def _get_seq(roll: list, idx: int, beginning: bool = False):
             """Sequentialises roll backwards, modifying roll inplace."""
             # Add bos token if beginning is True
             if beginning is True:
@@ -72,19 +73,18 @@ class Tokenizer:
             else:
                 seq = []
 
-            # -3 counts for a possible off_tok, time_tok, and eos_tok
-            while roll and (len(seq) + len(roll[0]) <= self.max_seq_len - 3):
-                for note in roll.pop(0):  # Modifies roll inplace
+            # -1 counts for a possible time_tok or eos_tok
+            while idx < len(roll) and (
+                len(seq) + len(roll[idx]) <= self.max_seq_len - 1
+            ):
+                for note in roll[idx]:  # Modifies roll inplace
                     seq.append(note)
 
-                # Randomly add note-offs
-                if random.uniform(0, 1) < self.note_off_rate:
-                    seq.append(self.off_tok)
-
                 seq.append(self.time_tok)
+                idx += 1
 
             # If end of piano-roll, append end of sequence
-            if not roll:
+            if idx == len(roll):
                 seq.pop()  # Remove last time_tok
                 seq.append(self.eos_tok)
 
@@ -94,10 +94,29 @@ class Tokenizer:
             return seq
 
         roll = copy.deepcopy(piano_roll.roll)
-        sequences = [_get_seq(roll, beginning=True)]
+        chord_len = [len(chord) for chord in roll]
+        cum_sum = [
+            sum(chord_len[: i + 1]) + (i + 1) for i in range(len(chord_len))
+        ]
 
-        while roll:
-            sequences.append(_get_seq(roll, beginning=False))
+        # Calculates chord idx to start from.
+        curr, prev = 0, 0
+        idxs = []
+        while True:
+            while curr < len(cum_sum) and (
+                cum_sum[curr] - cum_sum[prev] <= self.stride_len
+            ):
+                curr += 1
+
+            idxs.append(prev)
+            if cum_sum[-1] - cum_sum[prev] <= self.max_seq_len:
+                break
+            else:
+                prev = curr
+
+        sequences = [_get_seq(roll, idxs[0], beginning=True)]
+        for idx in idxs[1:]:
+            sequences.append(_get_seq(roll, idx))
 
         return sequences
 
@@ -146,7 +165,7 @@ class Tokenizer:
         pass
 
 
-class PretrainTokenizer(Tokenizer):
+class MaskedLMPretrainTokenizer(Tokenizer):
     """Tokenizes and sequentialises PianoRoll objects for pre-training.
 
     Args:
@@ -220,7 +239,7 @@ class PretrainTokenizer(Tokenizer):
         return src, tgt
 
 
-class FinetuneTokenizer(Tokenizer):
+class ChoraleTokenizer(Tokenizer):
     """Tokenizes and sequentialises PianoRoll objects for fine-tuning.
 
     This tokenizer differs from PretrainTokenizer only in the apply() function.
@@ -295,5 +314,47 @@ class FinetuneTokenizer(Tokenizer):
             src.append(seq[idx])
             tgt.append(seq[idx])
             idx += 1
+
+        return src, tgt
+
+
+class CasualPretrainTokenizer(Tokenizer):
+    """Tokenizer for casual (GPT) style language modelling.
+
+    This implements an apply() method which returns (src, tgt) for next token
+    prediction.
+
+    Args:
+        model_config (ModelConfig): Config for model.
+        return_tensors (bool, optional): Whether encode() should return tensors
+            automatically. Defaults to True.
+        pitch_aug_range (int, optional): Range for pitch augmentation. Defaults
+            to 6.
+    """
+
+    def __init__(
+        self,
+        model_config: ModelConfig,
+        return_tensors: bool = True,
+        pitch_aug_range: int = 6,
+    ):
+        super().__init__(model_config, return_tensors)
+
+        self.pitch_aug_range = pitch_aug_range
+
+    def apply(self, seq: list):
+        """Transforms seq into appropriate src, tgt."""
+        pitch_aug = random.randint(-self.pitch_aug_range, self.pitch_aug_range)
+
+        src = []
+        for tok in seq:
+            if isinstance(tok, int):
+                src.append(tok + pitch_aug)
+            else:
+                src.append(tok)
+
+        tgt = src.copy()
+        tgt.pop(0)
+        tgt.append(self.pad_tok)
 
         return src, tgt

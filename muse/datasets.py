@@ -14,7 +14,12 @@ from progress.bar import Bar
 from pianoroll import PianoRoll
 from mutopia import parse_rdf_metadata, filter_instrument
 from models.model import ModelConfig
-from models.tokenizer import Tokenizer, PretrainTokenizer, FinetuneTokenizer
+from models.tokenizer import (
+    Tokenizer,
+    MaskedLMPretrainTokenizer,
+    ChoraleTokenizer,
+    CasualPretrainTokenizer,
+)
 
 
 class PianoRollDataset:
@@ -279,18 +284,18 @@ class TrainDataset(torch.utils.data.Dataset):
 
 
 def main():
-    dataset = PianoRollDataset.build(
-        "data/raw/by_composer/bach",
-        recur=True,
-        # metadata_fn=parse_rdf_metadata,
-        # filter_fn=filter_instrument,
-    )
-    dataset.to_json("data/processed/other.json")
-    # dataset = PianoRollDataset.from_json("data/processed/other.json")
+    # dataset = PianoRollDataset.build(
+    #    "data/raw/by_composer/bach",
+    #    recur=True,
+    #    # metadata_fn=parse_rdf_metadata,
+    #    # filter_fn=filter_instrument,
+    # )
+    # dataset.to_json("data/processed/other.json")
+    dataset = PianoRollDataset.from_json("data/processed/other.json")
 
     model_config = ModelConfig()
-    model_config.max_seq_len = 2096
-    tokenizer = FinetuneTokenizer(model_config)
+    tokenizer = MaskedLMPretrainTokenizer(model_config)
+    # tokenizer.max_seq_len = 2096
     train_dataset = TrainDataset.from_pianoroll_dataset(
         dataset,
         tokenizer,
