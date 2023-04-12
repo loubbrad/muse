@@ -102,7 +102,7 @@ class PianoRollDataset:
         div: int = 4,
         metadata_fn: Callable | None = None,
         filter_fn: Callable | None = None,
-        tt_split: float = 0.9,
+        tt_split: float = 0.95,
     ):
         """Builds a piano-roll dataset from a directory containing .mid files.
 
@@ -285,17 +285,18 @@ class TrainDataset(torch.utils.data.Dataset):
 
 def main():
     # dataset = PianoRollDataset.build(
-    #    "data/raw/by_composer/bach",
+    #    "data/raw/mutopia",
     #    recur=True,
-    #    # metadata_fn=parse_rdf_metadata,
-    #    # filter_fn=filter_instrument,
+    #    metadata_fn=parse_rdf_metadata,
+    #    filter_fn=filter_instrument,
     # )
-    # dataset.to_json("data/processed/other.json")
-    dataset = PianoRollDataset.from_json("data/processed/other.json")
+    # dataset.to_json("data/processed/mutopia.json")
+    dataset = PianoRollDataset.from_json("data/processed/combined.json")
+    print(len(dataset.train))
+    print(len(dataset.test))
 
     model_config = ModelConfig()
     tokenizer = MaskedLMPretrainTokenizer(model_config)
-    # tokenizer.max_seq_len = 2096
     train_dataset = TrainDataset.from_pianoroll_dataset(
         dataset,
         tokenizer,
@@ -304,7 +305,7 @@ def main():
     print(len(train_dataset))
 
     while True:
-        i = random.randint(1, 2000)
+        i = random.randint(1, 200)
         seq_enc = train_dataset[i][1]
         seq_dec = tokenizer.decode(seq_enc)
         p_roll = PianoRoll.from_seq(seq_dec)

@@ -72,9 +72,13 @@ def train(mode: str, checkpoint: Optional[str], epochs: int):
     batch_size = 64
     model_config = ModelConfig()
 
-    if mode == "pt":
+    if mode == "maskedlm-pretrain":
+        tokenizer = MaskedLMPretrainTokenizer(model_config)
+        assert model_config.use_casual_mask is False, "Casual mask error"
+    elif mode == "casual-pretrain":
         tokenizer = CasualPretrainTokenizer(model_config)
-    elif mode == "ft":
+        assert model_config.use_casual_mask is True, "Casual mask error"
+    elif mode == "finetune":
         tokenizer = ChoraleTokenizer(model_config)
     else:
         raise ValueError
@@ -84,7 +88,7 @@ def train(mode: str, checkpoint: Optional[str], epochs: int):
     elif checkpoint is None:
         model = MusePretrainLM(model_config, lr=lr)
 
-    dataset = PianoRollDataset.from_json("data/processed/cpoint_chorales.json")
+    dataset = PianoRollDataset.from_json("data/processed/combined.json")
     dataset_train = dataset.to_train(tokenizer, split="train")
     dataset_test = dataset.to_train(tokenizer, split="test")
     dl_train = DataLoader(dataset_train, batch_size=batch_size, num_workers=4)
@@ -94,7 +98,7 @@ def train(mode: str, checkpoint: Optional[str], epochs: int):
     checkpoint_callback = ModelCheckpoint(
         filename="{epoch}-{train_loss}-{val_loss}",
         save_top_k=5,
-        monitor="train_loss",
+        monitor="val_loss",
         save_weights_only=True,
     )
 
@@ -126,7 +130,11 @@ def get_torch_module(load_path: str):
 
 def parse_arguments():
     argp = argparse.ArgumentParser()
-    argp.add_argument("-m", "--mode", choices=["pt", "ft"])
+    argp.add_argument(
+        "-m",
+        "--mode",
+        choices=["maskedlm-pretrain", "casual-pretrain", "finetune"],
+    )
     argp.add_argument("-c", "--checkpoint")
     argp.add_argument("--epochs", type=int)
     kwargs = vars(argp.parse_args())

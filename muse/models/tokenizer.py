@@ -180,7 +180,7 @@ class MaskedLMPretrainTokenizer(Tokenizer):
         model_config: ModelConfig,
         return_tensors: bool = True,
         mask_p: float = 0.20,
-        pitch_aug_range: int = 6,
+        pitch_aug_range: int = 4,
     ):
         super().__init__(model_config, return_tensors)
 
@@ -188,7 +188,7 @@ class MaskedLMPretrainTokenizer(Tokenizer):
         self.pitch_aug_range = pitch_aug_range
 
         assert (
-            model_config.use_casual_mask == False
+            model_config.use_casual_mask is False
         ), "Causal mask incompatible."
 
     def apply(self, seq: list):
@@ -257,7 +257,7 @@ class ChoraleTokenizer(Tokenizer):
         self,
         model_config: ModelConfig,
         return_tensors: bool = True,
-        pitch_aug_range: int = 6,
+        pitch_aug_range: int = 4,
     ):
         super().__init__(model_config, return_tensors)
 
@@ -266,7 +266,7 @@ class ChoraleTokenizer(Tokenizer):
         self.dist = torch.distributions.uniform.Uniform(0.0, 0.9)
 
         assert (
-            model_config.use_casual_mask == False
+            model_config.use_casual_mask is False
         ), "Causal mask incompatible."
 
     def apply(self, seq: list):
@@ -344,14 +344,14 @@ class CasualPretrainTokenizer(Tokenizer):
         self,
         model_config: ModelConfig,
         return_tensors: bool = True,
-        pitch_aug_range: int = 6,
+        pitch_aug_range: int = 4,
     ):
         super().__init__(model_config, return_tensors)
 
         self.pitch_aug_range = pitch_aug_range
 
         assert (
-            model_config.use_casual_mask == True
+            model_config.use_casual_mask is True
         ), "Non-casual mask incompatible."
 
     def apply(self, seq: list):
