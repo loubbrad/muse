@@ -85,35 +85,70 @@ def gibbs_unmask(
         return tokenizer.decode(seq)
 
 
+def lazy_casual_sample(
+    prompt: list,
+    num_tokens: int,
+    model: MuseMaskedLM,
+    tokenizer: Tokenizer,
+    piano_roll: bool = True,
+):
+    idx = len(prompt)
+    prompt += [tokenizer.pad_tok] * (tokenizer.max_seq_len - len(prompt))
+    seq_enc = tokenizer.encode(prompt).reshape(1, -1).cuda()
+
+    for _ in range(num_tokens):
+        logits = model.forward(seq_enc)[0, idx - 1, :]
+        probs = torch.nn.functional.softmax(logits, dim=0)
+        sample = torch.multinomial(probs, 1)
+        seq_enc[0, idx] = sample
+        idx += 1
+
+    print(tokenizer.decode(seq_enc[0]))
+    if piano_roll is True:
+        return pianoroll.PianoRoll.from_seq(tokenizer.decode(seq_enc[0]))
+    else:
+        return tokenizer.decode(seq_enc[0])
+
+
 def main():
-    load_path = ""
+    load_path = "lightning_logs/version_0/checkpoints/epoch=150-train_loss=0.19253011047840118-val_loss=0.3575965464115143.ckpt"
 
     model_config = ModelConfig()
     tokenizer = Tokenizer(model_config)
     model = get_torch_module(load_path).cuda()
     model.eval()
 
-    num_notes = math.floor((model_config.max_seq_len - 3) / 5)
-    prompt = ["<M>", "<M>", "<M>", "<M>", "<T>"] * num_notes
-    prompt[-1] = "<E>"
-    prompt += ["<P>"] * (model_config.max_seq_len - len(prompt))
+    prompt = ["<S>"]
+    res = lazy_casual_sample(
+        prompt,
+        300,
+        model,
+        tokenizer,
+    )
+    mid = res.to_midi()
+    mid.save("test.mid")
 
-    for i in range(10):
-        gibbs_config = GibbsConfig()
-        res_dec = gibbs_unmask(
-            prompt,
-            model,
-            tokenizer,
-            gibbs_config,
-            piano_roll=False,
-        )
+    # num_notes = math.floor((model_config.max_seq_len - 3) / 5)
+    # prompt = ["<M>", "<M>", "<M>", "<M>", "<T>"] * num_notes
+    # prompt[-1] = "<E>"
+    # prompt += ["<P>"] * (model_config.max_seq_len - len(prompt))
 
-        print(res_dec)
-        print(len(res_dec))
+    # for i in range(10):
+    #    gibbs_config = GibbsConfig()
+    #    res_dec = gibbs_unmask(
+    #        prompt,
+    #        model,
+    #        tokenizer,
+    #        gibbs_config,
+    #        piano_roll=False,
+    #    )
 
-        p_roll = pianoroll.PianoRoll.from_seq(res_dec)
-        mid = p_roll.to_midi()
-        mid.save(f"samples/muse/test{i}.mid")
+    #    print(res_dec)
+    #    print(len(res_dec))
+
+    #    p_roll = pianoroll.PianoRoll.from_seq(res_dec)
+    #    mid = p_roll.to_midi()
+    #    mid.save(f"samples/muse/test{i}.mid")
 
 
 if __name__ == "__main__":

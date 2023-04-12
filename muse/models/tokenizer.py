@@ -187,6 +187,10 @@ class MaskedLMPretrainTokenizer(Tokenizer):
         self.mask_p = mask_p
         self.pitch_aug_range = pitch_aug_range
 
+        assert (
+            model_config.use_casual_mask == False
+        ), "Causal mask incompatible."
+
     def apply(self, seq: list):
         """Applies random masking (in place) on piano-roll sequence.
 
@@ -260,6 +264,10 @@ class ChoraleTokenizer(Tokenizer):
         self.pitch_aug_range = pitch_aug_range
         # self.dist = torch.distributions.beta.Beta(1.8, 3)
         self.dist = torch.distributions.uniform.Uniform(0.0, 0.9)
+
+        assert (
+            model_config.use_casual_mask == False
+        ), "Causal mask incompatible."
 
     def apply(self, seq: list):
         """Applies random masking (in place) on piano-roll sequence.
@@ -341,6 +349,10 @@ class CasualPretrainTokenizer(Tokenizer):
         super().__init__(model_config, return_tensors)
 
         self.pitch_aug_range = pitch_aug_range
+
+        assert (
+            model_config.use_casual_mask == True
+        ), "Non-casual mask incompatible."
 
     def apply(self, seq: list):
         """Transforms seq into appropriate src, tgt."""
