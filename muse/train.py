@@ -45,6 +45,7 @@ class MusePretrainLM(pl.LightningModule):
             on_epoch=True,
             prog_bar=True,
             logger=True,
+            sync_dist=True,  # Not sure what this does
         )
 
         return loss
@@ -61,6 +62,7 @@ class MusePretrainLM(pl.LightningModule):
             on_epoch=True,
             prog_bar=True,
             logger=True,
+            sync_dist=True,  # Not sure what this does
         )
 
     def configure_optimizers(self):
@@ -68,8 +70,8 @@ class MusePretrainLM(pl.LightningModule):
 
 
 def train(mode: str, checkpoint: Optional[str], epochs: int):
-    lr = 1e-4
-    batch_size = 64
+    lr = 3e-4
+    batch_size = 32
     model_config = ModelConfig()
 
     if mode == "maskedlm-pretrain":

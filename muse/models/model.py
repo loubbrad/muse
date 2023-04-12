@@ -191,6 +191,7 @@ class MuseEncoder(nn.Module):
             padding_idx=model_config.pad_id,
         )
 
+        self.out_layer_norm = nn.LayerNorm(model_config.d_model)
         self.encode_layers = nn.ModuleList()
         for _ in range(model_config.n_layers):
             self.encode_layers.append(FusedEncoderBlock(model_config))
@@ -207,6 +208,7 @@ class MuseEncoder(nn.Module):
                 d_model).
         """
         hidden_states = self.tok_embeddings(src)
+        freqs_cis = torch.view_as_complex(self.freqs_cis)
 
         # Implements gradient checkpoints on Encoder Layers.
         if self.model_config.grad_checkpoint is True:
@@ -221,15 +223,15 @@ class MuseEncoder(nn.Module):
                 hidden_states = torch.utils.checkpoint.checkpoint(
                     create_custom_forward(layer),
                     hidden_states,
-                    self.freqs_cis,
+                    freqs_cis,
                     preserve_rng_state=True,
                 )
 
         else:
             for layer in self.encode_layers:
-                hidden_states = layer(hidden_states, self.freqs_cis)
+                hidden_states = layer(hidden_states, freqs_cis)
 
-        return hidden_states
+        return self.out_layer_norm(hidden_states)
 
     # Taken from facebookresearch/llama/model.py
     def _precompute_freqs_cis(self, dim: int, end: int, theta: float = 10000.0):
@@ -240,7 +242,8 @@ class MuseEncoder(nn.Module):
         freqs = torch.outer(t, freqs).float()  # type: ignore
         freqs_cis = torch.polar(torch.ones_like(freqs), freqs)  # complex64
 
-        return freqs_cis
+        # Workaround see - https://github.com/pytorch/pytorch/issues/71613
+        return torch.view_as_real(freqs_cis)
 
 
 class MuseMaskedLM(nn.Module):
