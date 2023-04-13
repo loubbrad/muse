@@ -16,7 +16,7 @@ from models.tokenizer import (
     CasualPretrainTokenizer,
     ChoraleTokenizer,
 )
-from datasets import PianoRollDataset
+from datasets import TrainDataset
 
 
 class MusePretrainLM(pl.LightningModule):
@@ -69,7 +69,13 @@ class MusePretrainLM(pl.LightningModule):
         return torch.optim.Adam(self.model.parameters(), lr=self.lr)
 
 
-def train(mode: str, checkpoint: Optional[str], epochs: int):
+def train(
+    mode: str,
+    checkpoint: Optional[str],
+    workers: int,
+    gpus: int,
+    epochs: int,
+):
     lr = 3e-4
     batch_size = 32
     model_config = ModelConfig()
@@ -90,11 +96,18 @@ def train(mode: str, checkpoint: Optional[str], epochs: int):
     elif checkpoint is None:
         model = MusePretrainLM(model_config, lr=lr)
 
-    dataset = PianoRollDataset.from_json("data/processed/combined.json")
-    dataset_train = dataset.to_train(tokenizer, split="train")
-    dataset_test = dataset.to_train(tokenizer, split="test")
-    dl_train = DataLoader(dataset_train, batch_size=batch_size, num_workers=4)
-    dl_test = DataLoader(dataset_test, batch_size=batch_size, num_workers=4)
+    dataset_train = TrainDataset.from_json(
+        "data/processed/mutopia_2048_128.json", tokenizer, key="train"
+    )
+    dataset_test = TrainDataset.from_json(
+        "data/processed/mutopia_2048_128.json", tokenizer, key="test"
+    )
+    dl_train = DataLoader(
+        dataset_train, batch_size=batch_size, num_workers=workers
+    )
+    dl_test = DataLoader(
+        dataset_test, batch_size=batch_size, num_workers=workers
+    )
 
     # See https://shorturl.at/AGHZ3
     checkpoint_callback = ModelCheckpoint(
@@ -105,7 +118,7 @@ def train(mode: str, checkpoint: Optional[str], epochs: int):
     )
 
     trainer = pl.Trainer(
-        devices=1,
+        devices=gpus,
         accelerator="gpu",
         precision="16-mixed",
         max_epochs=epochs,
@@ -136,9 +149,13 @@ def parse_arguments():
         "-m",
         "--mode",
         choices=["maskedlm-pretrain", "casual-pretrain", "finetune"],
+        required=True,
     )
+
     argp.add_argument("-c", "--checkpoint")
-    argp.add_argument("--epochs", type=int)
+    argp.add_argument("--workers", type=int, default=1)
+    argp.add_argument("--gpus", type=int, default=1)
+    argp.add_argument("--epochs", type=int, required=True)
     kwargs = vars(argp.parse_args())
 
     return kwargs

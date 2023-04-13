@@ -275,15 +275,24 @@ class TrainDataset(torch.utils.data.Dataset):
         cls,
         load_path: str,
         tokenizer: Tokenizer,
-        split: str,
+        key: str | None = None,
     ):
         with open(load_path) as f:
-            raw_data = json.load(f)
+            if key is None:
+                raw_data = json.load(f)
+            else:
+                raw_data = json.load(f)[key]
 
-        return TrainDataset(tokenizer, raw_data[split])
+        assert isinstance(raw_data, list), "Loaded data must be a list."
+        assert (
+            len(raw_data[0]) == tokenizer.max_seq_len
+        ), "Sequence len mismatch."
+
+        return TrainDataset(tokenizer, raw_data)
 
 
 def main():
+    name = "mutopia"
     # dataset = PianoRollDataset.build(
     #    "data/raw/mutopia",
     #    recur=True,
@@ -291,17 +300,44 @@ def main():
     #    filter_fn=filter_instrument,
     # )
     # dataset.to_json("data/processed/mutopia.json")
-    dataset = PianoRollDataset.from_json("data/processed/combined.json")
-    print(len(dataset.train))
-    print(len(dataset.test))
+
+    # dataset = PianoRollDataset.from_json(
+    #    f"data/raw/piano_roll_json/{name}.json"
+    # )
+    # print(len(dataset.train))
+    # print(len(dataset.test))
+
+    # model_config = ModelConfig()
+    # tokenizer = MaskedLMPretrainTokenizer(model_config)
+    # train_dataset = TrainDataset.from_pianoroll_dataset(
+    #    dataset,
+    #    tokenizer,
+    #    split="train",
+    # )
+    # print(len(train_dataset))
+    # test_dataset = TrainDataset.from_pianoroll_dataset(
+    #    dataset,
+    #    tokenizer,
+    #    split="test",
+    # )
+    # print(len(test_dataset))
+
+    # res = {"train": train_dataset.data, "test": test_dataset.data}
+    # with open(
+    #    f"{name}_{model_config.max_seq_len}_{model_config.stride_len}.json",
+    #    "w",
+    #    encoding="utf-8",
+    # ) as f:
+    #    json.dump(res, f)
 
     model_config = ModelConfig()
     tokenizer = MaskedLMPretrainTokenizer(model_config)
-    train_dataset = TrainDataset.from_pianoroll_dataset(
-        dataset,
+    train_dataset = TrainDataset.from_json(
+        "data/processed/mutopia_2048_128.json",
         tokenizer,
-        split="train",
+        "test",
     )
+
     print(len(train_dataset))
 
     while True:
