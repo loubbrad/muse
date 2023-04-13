@@ -81,11 +81,11 @@ def train(
     model_config = ModelConfig()
 
     if mode == "maskedlm-pretrain":
+        model_config.use_casual_mask = False
         tokenizer = MaskedLMPretrainTokenizer(model_config)
-        assert model_config.use_casual_mask is False, "Casual mask error"
     elif mode == "casual-pretrain":
+        model_config.use_casual_mask = True
         tokenizer = CasualPretrainTokenizer(model_config)
-        assert model_config.use_casual_mask is True, "Casual mask error"
     elif mode == "finetune":
         tokenizer = ChoraleTokenizer(model_config)
     else:
