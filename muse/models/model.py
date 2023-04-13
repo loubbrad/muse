@@ -138,7 +138,7 @@ class FusedEncoderBlock(nn.Module):
 
         # Required as we are not using a nn.Dropout layer
         if self.training:
-            att_dropout = self.drop_p
+            att_dropout = 0.0  # No attention dropout due to bug.
         else:
             att_dropout = 0.0
 
