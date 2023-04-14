@@ -272,7 +272,7 @@ class ChoraleTokenizer(Tokenizer):
     def apply(self, seq: list):
         """Applies random masking (in place) on piano-roll sequence.
 
-        Masking probability is determined by a beta distribution.
+        ONLY WORKS FOR BUFFER 4 VOICES
 
         Args:
             seq (list): Sequences to be randomly masked.
@@ -284,20 +284,24 @@ class ChoraleTokenizer(Tokenizer):
         # TODO: Update this for generative objective.
         def _mask_aug_chord(chord: list, src: list, tgt: list):
             """Appends chord to src and tgt."""
-            ignore_ind = random.randint(0, len(chord) - 1)  # always keep one
             for i, tok in enumerate(chord):
-                if isinstance(tok, int):
-                    if random.uniform(0, 1) < mask_p and i != ignore_ind:
+                if random.uniform(0, 1) < mask_p and i != ignore_ind:  # Mask
+                    if isinstance(tok, int):  # Note
                         src.append(self.mask_tok)
                         tgt.append(tok + pitch_aug)
-                    else:
+                    else:  # off_tok or unk_tok
+                        src.append(self.mask_tok)
+                        tgt.append(tok)
+                else:  # Don't mask
+                    if isinstance(tok, int):  # Note
                         src.append(tok + pitch_aug)
                         tgt.append(tok + pitch_aug)
-                elif tok == self.off_tok:  ## Update this
-                    src.append(self.mask_tok)
-                    tgt.append(self.off_tok)
+                    else:  # off_tok or unk_tok
+                        src.append(tok)
+                        tgt.append(tok)
 
         mask_p = self.dist.sample().item()
+        ignore_ind = random.randint(0, 3)
         src, tgt = [], []
         pitch_aug = random.randint(-self.pitch_aug_range, self.pitch_aug_range)
 
@@ -316,12 +320,19 @@ class ChoraleTokenizer(Tokenizer):
 
             # Perform shuffling, pitch augmenting, and masking
             if buffer:
+                # Choose voice to ignore and mask others
                 _mask_aug_chord(buffer, src, tgt)
 
             # Append time_tok, bos_tok, eos_tok, or pad_tok
             src.append(seq[idx])
             tgt.append(seq[idx])
             idx += 1
+
+        print(ignore_ind)
+        print(mask_p)
+        for i in range(50):
+            print(src[i], tgt[i])
+        print("-----------------------------------")
 
         return src, tgt
 

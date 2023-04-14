@@ -73,6 +73,7 @@ class MusePretrainLM(pl.LightningModule):
 def train(
     mode: str,
     checkpoint: Optional[str],
+    data: str,
     workers: int,
     gpus: int,
     epochs: int,
@@ -101,10 +102,10 @@ def train(
         model = MusePretrainLM(model_config, lr=lr)
 
     dataset_train = TrainDataset.from_json(
-        "data/processed/mutopia_2048_128.json", tokenizer, key="train"
+        data, tokenizer, key="train"
     )
     dataset_test = TrainDataset.from_json(
-        "data/processed/mutopia_2048_128.json", tokenizer, key="test"
+        data, tokenizer, key="test"
     )
     dl_train = DataLoader(
         dataset_train, batch_size=batch_size, num_workers=workers
@@ -167,6 +168,7 @@ def parse_arguments():
     )
 
     argp.add_argument("-c", "--checkpoint")
+    argp.add_argument("-d", "--data", type=str)
     argp.add_argument("--workers", type=int, default=1)
     argp.add_argument("--gpus", type=int, default=1)
     argp.add_argument("--epochs", type=int, required=True)
