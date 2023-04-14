@@ -1,6 +1,7 @@
 """Contains training code for pre-training and fine-tuning using Pytorch
 Lightning."""
 
+import re
 import argparse
 from typing import Optional
 import torch
@@ -119,10 +120,20 @@ def train(
         save_weights_only=True,
     )
 
+    a100_re = re.compile(r"[aA]100")
+    v100_re = re.compile(r"[vV]100")
+    if a100_re.search(torch.cuda.get_device_name(0)):
+        prec = "bf16"
+    elif v100_re.search(torch.cuda.get_device_name(0)):
+        prec = "16-mixed"
+    else:
+        print("GPU not A100 or V100")
+        prec = "16-mixed"
+
     trainer = pl.Trainer(
         devices=gpus,
         accelerator="gpu",
-        precision="16-mixed",
+        precision=prec,
         max_epochs=epochs,
         callbacks=[checkpoint_callback],
     )
