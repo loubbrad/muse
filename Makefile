@@ -12,10 +12,7 @@ get_data: folders
 	wget https://www.dropbox.com/s/9sc6m9dk6bu0hz5/fugue_2048_128.json -P data/processed
 
 get_maskedlm: folders
-	wget -O params.ckpt https://www.dropbox.com/s/87qapkjqsqvosgo/maskedlm_train0.01246_val0.0167.ckpt -P models
+	wget -O models/params.ckpt https://www.dropbox.com/s/87qapkjqsqvosgo/maskedlm_train0.01246_val0.0167.ckpt
 	
 get_casual: folders
-	wget -O params.ckpt https://www.dropbox.com/s/w5raludplckwiai/casual_train0.4273_val0.5335.ckpt -P models
-	
-download: get_data get_params
-	echo Downloading...
+	wget -O models/params.ckpt https://www.dropbox.com/s/w5raludplckwiai/casual_train0.4273_val0.5335.ckpt

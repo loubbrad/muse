@@ -91,6 +91,7 @@ def train(
         tokenizer = CasualPretrainTokenizer(model_config)
     elif mode == "finetune":
         tokenizer = ChoraleTokenizer(model_config)
+        model_config.drop_p = 0.1
     else:
         raise ValueError
 

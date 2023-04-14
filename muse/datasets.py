@@ -292,7 +292,7 @@ class TrainDataset(torch.utils.data.Dataset):
 
 
 def main():
-    name = "mutopia"
+    name = "fugue"
     # dataset = PianoRollDataset.build(
     #    "data/raw/mutopia",
     #    recur=True,
@@ -301,41 +301,39 @@ def main():
     # )
     # dataset.to_json("data/processed/mutopia.json")
 
-    # dataset = PianoRollDataset.from_json(
-    #    f"data/raw/piano_roll_json/{name}.json"
-    # )
-    # print(len(dataset.train))
-    # print(len(dataset.test))
+    dataset = PianoRollDataset.from_json(f"data/raw/counterpoint/{name}.json")
+    print("train", len(dataset.train))
+    print("test", len(dataset.test))
 
-    # model_config = ModelConfig()
-    # tokenizer = MaskedLMPretrainTokenizer(model_config)
-    # train_dataset = TrainDataset.from_pianoroll_dataset(
-    #    dataset,
-    #    tokenizer,
-    #    split="train",
-    # )
-    # print(len(train_dataset))
-    # test_dataset = TrainDataset.from_pianoroll_dataset(
-    #    dataset,
-    #    tokenizer,
-    #    split="test",
-    # )
-    # print(len(test_dataset))
+    model_config = ModelConfig()
+    tokenizer = MaskedLMPretrainTokenizer(model_config)
+    train_dataset = TrainDataset.from_pianoroll_dataset(
+        dataset,
+        tokenizer,
+        split="train",
+    )
+    print(len(train_dataset))
+    test_dataset = TrainDataset.from_pianoroll_dataset(
+        dataset,
+        tokenizer,
+        split="test",
+    )
+    print(len(test_dataset))
 
-    # res = {"train": train_dataset.data, "test": test_dataset.data}
-    # with open(
-    #    f"{name}_{model_config.max_seq_len}_{model_config.stride_len}.json",
-    #    "w",
-    #    encoding="utf-8",
-    # ) as f:
-    #    json.dump(res, f)
+    res = {"train": train_dataset.data, "test": test_dataset.data}
+    with open(
+        f"{name}_{model_config.max_seq_len}_{model_config.stride_len}.json",
+        "w",
+        encoding="utf-8",
+    ) as f:
+        json.dump(res, f)
 
     model_config = ModelConfig()
     tokenizer = MaskedLMPretrainTokenizer(model_config)
     train_dataset = TrainDataset.from_json(
-        "data/processed/mutopia_2048_128.json",
+        f"{name}_{model_config.max_seq_len}_{model_config.stride_len}.json",
         tokenizer,
-        "test",
+        "train",
     )
 
     print(len(train_dataset))
