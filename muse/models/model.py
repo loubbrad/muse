@@ -15,7 +15,7 @@ class ModelConfig:
     n_heads: int = 22
     n_layers: int = 48
     ff_mult: int = 4
-    drop_p = 0.1
+    drop_p = 0.0
     max_seq_len: int = 2048
     stride_len: int = 128
 

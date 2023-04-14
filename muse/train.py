@@ -82,9 +82,11 @@ def train(
 
     if mode == "maskedlm-pretrain":
         model_config.use_casual_mask = False
+        model_config.drop_p = 0.0
         tokenizer = MaskedLMPretrainTokenizer(model_config)
     elif mode == "casual-pretrain":
         model_config.use_casual_mask = True
+        model_config.drop_p = 0.1
         tokenizer = CasualPretrainTokenizer(model_config)
     elif mode == "finetune":
         tokenizer = ChoraleTokenizer(model_config)
@@ -112,7 +114,7 @@ def train(
     # See https://shorturl.at/AGHZ3
     checkpoint_callback = ModelCheckpoint(
         filename="{epoch}-{train_loss}-{val_loss}",
-        save_top_k=5,
+        save_top_k=3,
         monitor="val_loss",
         save_weights_only=True,
     )
