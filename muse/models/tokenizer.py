@@ -243,7 +243,7 @@ class MaskedLMPretrainTokenizer(Tokenizer):
         return src, tgt
 
 
-class ChoraleTokenizer(Tokenizer):
+class FinetuneTokenizer(Tokenizer):
     """Tokenizes and sequentialises PianoRoll objects for fine-tuning.
 
     This tokenizer differs from PretrainTokenizer only in the apply() function.
@@ -327,12 +327,6 @@ class ChoraleTokenizer(Tokenizer):
             src.append(seq[idx])
             tgt.append(seq[idx])
             idx += 1
-
-        print(ignore_ind)
-        print(mask_p)
-        for i in range(50):
-            print(src[i], tgt[i])
-        print("-----------------------------------")
 
         return src, tgt
 

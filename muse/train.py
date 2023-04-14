@@ -15,7 +15,7 @@ from models.model import MuseMaskedLM, ModelConfig
 from models.tokenizer import (
     MaskedLMPretrainTokenizer,
     CasualPretrainTokenizer,
-    ChoraleTokenizer,
+    FinetuneTokenizer,
 )
 from datasets import TrainDataset
 
@@ -91,7 +91,7 @@ def train(
         model_config.drop_p = 0.1
         tokenizer = CasualPretrainTokenizer(model_config)
     elif mode == "finetune":
-        tokenizer = ChoraleTokenizer(model_config)
+        tokenizer = FinetuneTokenizer(model_config)
         model_config.drop_p = 0.1
     else:
         raise ValueError
@@ -101,12 +101,8 @@ def train(
     elif checkpoint is None:
         model = MusePretrainLM(model_config, lr=lr)
 
-    dataset_train = TrainDataset.from_json(
-        data, tokenizer, key="train"
-    )
-    dataset_test = TrainDataset.from_json(
-        data, tokenizer, key="test"
-    )
+    dataset_train = TrainDataset.from_json(data, tokenizer, key="train")
+    dataset_test = TrainDataset.from_json(data, tokenizer, key="test")
     dl_train = DataLoader(
         dataset_train, batch_size=batch_size, num_workers=workers
     )

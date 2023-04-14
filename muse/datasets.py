@@ -17,7 +17,7 @@ from models.model import ModelConfig
 from models.tokenizer import (
     Tokenizer,
     MaskedLMPretrainTokenizer,
-    ChoraleTokenizer,
+    FinetuneTokenizer,
     CasualPretrainTokenizer,
 )
 
