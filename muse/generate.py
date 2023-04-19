@@ -2,6 +2,7 @@
 tuned models."""
 
 import math
+import json
 import torch
 from dataclasses import dataclass
 
@@ -16,8 +17,8 @@ from models.tokenizer import Tokenizer
 class GibbsConfig:
     alpha_max = 1.0
     alpha_min = 0.05
-    num_steps = 250
-    neta = 0.75
+    num_steps = 1000
+    neta = 0.35
 
     temp_max = 1.0
     temp_min = 0.65
@@ -43,7 +44,7 @@ def gibbs_unmask(
     Returns:
         Optional[list, PianoRoll]: Un-masked sequence.
     """
-    seq = tokenizer.encode(seq).to(device=model.device)
+    seq = tokenizer.encode(seq).cuda()
     mask_key = tokenizer.tok_to_id[tokenizer.mask_tok]
     total_to_mask = torch.sum(seq == mask_key).item()
     uniform_dist = torch.where(seq == mask_key, 1.0, 0.0)
@@ -79,6 +80,8 @@ def gibbs_unmask(
         for i in range(block_size):
             seq[idx[i]] = torch.multinomial(probs[i], 1)
 
+        print(n)
+
     if piano_roll is True:
         return pianoroll.PianoRoll.from_seq(tokenizer.decode(seq))
     else:
@@ -110,46 +113,36 @@ def lazy_casual_sample(
         return tokenizer.decode(seq_enc[0])
 
 
-def main():
-    load_path = "lightning_logs/version_0/checkpoints/epoch=150-train_loss=0.19253011047840118-val_loss=0.3575965464115143.ckpt"
-
+def sample_maskedlm():
+    load_path = ""
     model_config = ModelConfig()
     tokenizer = Tokenizer(model_config)
     model = get_torch_module(load_path).cuda()
     model.eval()
 
-    prompt = ["<S>"]
-    res = lazy_casual_sample(
-        prompt,
-        300,
-        model,
-        tokenizer,
-    )
-    mid = res.to_midi()
-    mid.save("test.mid")
-
+    # No prompts
     # num_notes = math.floor((model_config.max_seq_len - 3) / 5)
     # prompt = ["<M>", "<M>", "<M>", "<M>", "<T>"] * num_notes
     # prompt[-1] = "<E>"
     # prompt += ["<P>"] * (model_config.max_seq_len - len(prompt))
 
-    # for i in range(10):
-    #    gibbs_config = GibbsConfig()
-    #    res_dec = gibbs_unmask(
-    #        prompt,
-    #        model,
-    #        tokenizer,
-    #        gibbs_config,
-    #        piano_roll=False,
-    #    )
+    # Load prompts
+    with open("data/raw/prompts/fugue_prompts_2048.json") as f:
+        prompts = json.load(f)
 
-    #    print(res_dec)
-    #    print(len(res_dec))
+    for i, prompt in enumerate(prompts):
+        gibbs_config = GibbsConfig()
+        p_roll = gibbs_unmask(
+            prompt,
+            model,
+            tokenizer,
+            gibbs_config,
+            piano_roll=True,
+        )
 
-    #    p_roll = pianoroll.PianoRoll.from_seq(res_dec)
-    #    mid = p_roll.to_midi()
-    #    mid.save(f"samples/muse/test{i}.mid")
+        mid = p_roll.to_midi()
+        mid.save(f"samples/test{i+1}.mid")
 
 
 if __name__ == "__main__":
-    main()
+    sample_maskedlm()
