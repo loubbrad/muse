@@ -8,7 +8,7 @@ init: folders
 	pip install -r req-dev.txt
 
 get_data: folders
-	gsutil cp gs://muse-model/data/fugue_2048_128.json data/train.json
+	gsutil cp gs://muse-model/data/fugue_2048_256.json data/train.json
 	gsutil cp gs://muse-model/data/fugue_prompts_2048.json data/prompt.json
 
 get_maskedlm: folders

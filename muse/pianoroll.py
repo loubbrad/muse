@@ -16,8 +16,8 @@ class PianoRoll:
 
     def __init__(self, roll: list = [], meta_data: dict = {"meta_events": {}}):
         """Initialises PianoRoll with data and metadata."""
-        self.roll = [sorted(chord) for chord in roll]
-        # self.roll = [chord for chord in roll]
+        # self.roll = [sorted(chord) for chord in roll]
+        self.roll = [chord for chord in roll]
         self.meta_data = meta_data
 
     def add_metadata(self, meta_data: dict):

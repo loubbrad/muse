@@ -17,7 +17,7 @@ from models.model import ModelConfig
 from models.tokenizer import (
     Tokenizer,
     MaskedLMPretrainTokenizer,
-    FugueTokenizer,
+    FinetuneTokenizer,
     CasualPretrainTokenizer,
 )
 
@@ -292,7 +292,7 @@ class TrainDataset(torch.utils.data.Dataset):
 
 
 def main():
-    name = "fugue"
+    name = "chorale"
     # dataset = PianoRollDataset.build(
     #    "data/raw/mutopia",
     #    recur=True,
@@ -306,7 +306,7 @@ def main():
     print("test", len(dataset.test))
 
     model_config = ModelConfig()
-    tokenizer = FugueTokenizer(model_config)
+    tokenizer = FinetuneTokenizer(model_config)
     train_dataset = TrainDataset.from_pianoroll_dataset(
         dataset,
         tokenizer,
@@ -331,7 +331,7 @@ def main():
     model_config = ModelConfig()
     tokenizer = MaskedLMPretrainTokenizer(model_config)
     train_dataset = TrainDataset.from_json(
-        f"{name}_{model_config.max_seq_len}_{model_config.stride_len}.json",
+        f"data/processed/{name}_{model_config.max_seq_len}_{model_config.stride_len}.json",
         tokenizer,
         "train",
     )
@@ -342,6 +342,7 @@ def main():
         i = random.randint(1, 200)
         seq_enc = train_dataset[i][1]
         seq_dec = tokenizer.decode(seq_enc)
+        print(seq_dec)
         p_roll = PianoRoll.from_seq(seq_dec)
         mid = p_roll.to_midi()
         mid.save("test.mid")

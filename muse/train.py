@@ -15,7 +15,7 @@ from models.model import MuseMaskedLM, ModelConfig
 from models.tokenizer import (
     MaskedLMPretrainTokenizer,
     CasualPretrainTokenizer,
-    FugueTokenizer,
+    FinetuneTokenizer,
 )
 from datasets import TrainDataset
 
@@ -91,7 +91,7 @@ def train(
         model_config.drop_p = 0.1
         tokenizer = CasualPretrainTokenizer(model_config)
     elif mode == "finetune":
-        tokenizer = FugueTokenizer(model_config)
+        tokenizer = FinetuneTokenizer(model_config)
         model_config.drop_p = 0.1
     else:
         raise ValueError

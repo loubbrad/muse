@@ -246,7 +246,7 @@ class MaskedLMPretrainTokenizer(Tokenizer):
         return src, tgt
 
 
-class FugueTokenizer(Tokenizer):
+class FinetuneTokenizer(Tokenizer):
     """Tokenizes and sequentialises PianoRoll objects for fine-tuning.
 
     This tokenizer differs from PretrainTokenizer only in the apply() function.
@@ -272,92 +272,36 @@ class FugueTokenizer(Tokenizer):
             model_config.use_casual_mask is False
         ), "Causal mask incompatible."
 
-    # CREATE A DIFFERENT TOKENIZER FOR CHORALE FT
-    def seq(self, piano_roll: PianoRoll, use_parent=False):
-        """Sequentialises fugue for fine-tuning.
+    def seq(self, piano_roll: PianoRoll):
+        """Adds bar-wise truncation to parent seq() function."""
 
-        Args:
-            piano_roll (PianoRoll): Fugue as PianoRoll object.
+        def _truncate(seq: list, num_bars: int = 4):
+            res = []
+            num_notes = num_bars * 4 * 4
 
-        Returns:
-            list[list]: Sequences .
-        """
+            curr_note = 0
+            for i, tok in enumerate(seq):
+                if tok == self.time_tok:
+                    curr_note += 1
+                    if curr_note % num_notes == 0:
+                        res.append(
+                            seq[: i + 1]
+                            + [self.pad_tok] * (self.max_seq_len - (i + 1))
+                        )
 
-        def _get_seq(roll: list, idx: int, beginning: bool = False):
-            """Sequentialises roll backwards, modifying roll inplace."""
-            # Add bos token if beginning is True
-            if beginning is True:
-                seq = [self.bos_tok]
-            else:
-                seq = []
+                elif tok == self.eos_tok:
+                    res.append(seq)
 
-            # -1 counts for a possible time_tok or eos_tok
-            while idx < len(roll) and (
-                len(seq) + len(roll[idx]) <= max_seq_len - 1
-            ):
-                for note in roll[idx]:  # Modifies roll inplace
-                    seq.append(note)
+            return res
 
-                seq.append(self.time_tok)
-                idx += 1
+        seqs = super().seq(piano_roll)
 
-            # If end of piano-roll, append end of sequence
-            if idx == len(roll):
-                seq.pop()  # Remove last time_tok
-                seq.append(self.eos_tok)
-
-            # Pad to max_seq_len
-            seq = seq + [self.pad_tok] * (max_seq_len - len(seq))
-
-            return seq
-
-        def _get_prompt(roll: list, num_bars: int = 3):
-            prompt = roll[: 4 * 4 * num_bars].copy()
-            after_prompt = roll[4 * 4 * num_bars :].copy()
-
-            res = ["<S>"]
-            for chord in prompt:
-                res += chord
-                res += ["<T>"]
-
-            return res, after_prompt
-
-        prompt, roll = _get_prompt(piano_roll.roll, num_bars=3)
-        max_seq_len = self.max_seq_len - (len(prompt) + 1)
-        stride_len = self.stride_len
-
-        chord_len = [len(chord) for chord in roll]
-        cum_sum = [
-            sum(chord_len[: i + 1]) + (i + 1) for i in range(len(chord_len))
-        ]
-
-        # Calculates chord idx to start from.
-        curr, prev = 0, 0
-        idxs = []
-        while True:
-            while curr < len(cum_sum) and (
-                cum_sum[curr] - cum_sum[prev] <= stride_len
-            ):
-                curr += 1
-
-            idxs.append(prev)
-            if cum_sum[-1] - cum_sum[prev] <= max_seq_len:
-                break
-            else:
-                prev = curr
-
-        sequences = [
-            prompt + [self.cls_tok] + _get_seq(roll, idxs[0], beginning=True)
-        ]
-        for idx in idxs[1:]:
-            sequences.append(prompt + [self.cls_tok] + _get_seq(roll, idx))
-
-        return sequences
+        return [tr_seq for seq in seqs for tr_seq in _truncate(seq)]
 
     def apply(self, seq: list):
         """Applies random masking (in place) on piano-roll sequence.
 
-        ONLY WORKS FOR BUFFER 4 VOICES AND SEP TOKEN.
+        ONLY WORKS FOR BUFFER 4 VOICES!
 
         Args:
             seq (list): Sequences to be randomly masked.
@@ -390,18 +334,6 @@ class FugueTokenizer(Tokenizer):
         pitch_aug = random.randint(-self.pitch_aug_range, self.pitch_aug_range)
 
         idx = 0
-        # Add the prompt
-        while seq[idx] != self.cls_tok:
-            src.append(seq[idx])
-            tgt.append(seq[idx])
-            idx += 1
-
-        # Add self.cls_tok
-        src.append(self.cls_tok)
-        tgt.append(self.cls_tok)
-        idx += 1
-
-        # Resume normal process
         while idx < self.max_seq_len:
             # Load current chord into buffer
             buffer = []
