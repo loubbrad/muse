@@ -1,11 +1,11 @@
-init:
-	pip install -r req.txt
-	pip install -r req-dev.txt
-
 folders:
 	mkdir -p data/processed
 	mkdir -p models
 	mkdir -p samples
+	
+init: folders
+	pip install -r req.txt
+	pip install -r req-dev.txt
 
 get_data: folders
 	gsutil cp gs://muse-model/data/fugue_2048_128.json data/train.json
