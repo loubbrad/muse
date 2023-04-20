@@ -5,14 +5,11 @@ init:
 folders:
 	mkdir -p data/processed
 	mkdir -p models
+	mkdir -p samples
 
 get_data: folders
-	wget https://www.dropbox.com/s/b22yu9a5g5pgi6m/mutopia_2048_128.json -P data/processed
-	wget https://www.dropbox.com/s/no5xi3oxjtxec5n/chorale_2048_128.json -P data/processed
-	wget https://www.dropbox.com/s/9sc6m9dk6bu0hz5/fugue_2048_128.json -P data/processed
+	gsutil cp gs://muse-model/data/fugue_2048_128.json data/train.json
+	gsutil cp gs://muse-model/data/fugue_prompts_2048.json data/prompt.json
 
 get_maskedlm: folders
-	wget -O models/params.ckpt https://www.dropbox.com/s/87qapkjqsqvosgo/maskedlm_train0.01246_val0.0167.ckpt
-	
-get_casual: folders
-	wget -O models/params.ckpt https://www.dropbox.com/s/w5raludplckwiai/casual_train0.4273_val0.5335.ckpt
+	gsutil cp gs://muse-model/models/pretrain_maskedlm/maskedlm_train0.01246_val0.0167.ckpt models/params.ckpt
