@@ -17,8 +17,8 @@ from models.tokenizer import Tokenizer
 class GibbsConfig:
     alpha_max = 1.0
     alpha_min = 0.05
-    num_steps = 1000
-    neta = 0.35
+    num_steps = 5
+    neta = 0.7
 
     temp_max = 1.0
     temp_min = 0.65
@@ -113,7 +113,7 @@ def lazy_casual_sample(
         return tokenizer.decode(seq_enc[0])
 
 
-def sample_maskedlm():
+def sample_fugue():
     load_path = ""
     model_config = ModelConfig()
     gibbs_config = GibbsConfig()
@@ -121,32 +121,57 @@ def sample_maskedlm():
     model = get_torch_module(load_path).cuda()
     model.eval()
 
-    # No prompts
-    # num_notes = math.floor((model_config.max_seq_len - 3) / 5)
-    # prompt = ["<M>", "<M>", "<M>", "<M>", "<T>"] * num_notes
-    # prompt[-1] = "<E>"
-    # prompt += ["<P>"] * (model_config.max_seq_len - len(prompt))
-
     # Load prompts
-    with open("data/raw/prompts/fugue_prompts_2048.json") as f:
+    with open("data/prompt.json") as f:  ## REVERT
         prompts = json.load(f)
+
+    mask_bar_step = 4
+    mask_bar = ["<M>", "<M>", "<M>", "<M>", "<T>"] * (4 * 4 * mask_bar_step)
 
     for i, prompt in enumerate(prompts):
         assert tokenizer.unk_tok not in tokenizer.decode(
             tokenizer.encode(prompt)
         ), "unk_tok present in prompt"
 
-        p_roll = gibbs_unmask(
-            prompt,
-            model,
-            tokenizer,
-            gibbs_config,
-            piano_roll=True,
-        )
+        # while len(prompt) - len(mask_bar) < model_config.max_seq_len:
+        while True:
+            prompt = [tok for tok in prompt if tok != "<P>"]
 
+            if len(prompt) + 2 * len(mask_bar) < model_config.max_seq_len:
+                print(len(prompt) + 2 * len(mask_bar))
+                prompt += mask_bar
+                prompt += ["<P>"] * (model_config.max_seq_len - len(prompt))
+                print(len(prompt))
+                assert len(prompt) == model_config.max_seq_len, "len err"
+                prompt = gibbs_unmask(
+                    prompt,
+                    model,
+                    tokenizer,
+                    gibbs_config,
+                    piano_roll=False,
+                )
+            else:  # Last itt with '<E>' instead of '<T>', then break while
+                print(len(prompt) + 2 * len(mask_bar))
+                prompt += mask_bar
+                prompt[-1] = "<E>"
+                prompt += ["<P>"] * (model_config.max_seq_len - len(prompt))
+                print(len(prompt))
+                assert len(prompt) == model_config.max_seq_len, "len err"
+                prompt = gibbs_unmask(
+                    prompt,
+                    model,
+                    tokenizer,
+                    gibbs_config,
+                    piano_roll=False,
+                )
+
+                break
+
+        print(prompt)
+        p_roll = pianoroll.PianoRoll.from_seq(prompt)
         mid = p_roll.to_midi()
         mid.save(f"samples/test{i+1}.mid")
 
 
 if __name__ == "__main__":
-    sample_maskedlm()
+    sample_fugue()
