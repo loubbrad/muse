@@ -15,7 +15,7 @@ from models.model import MuseMaskedLM, ModelConfig
 from models.tokenizer import (
     MaskedLMPretrainTokenizer,
     CasualPretrainTokenizer,
-    FinetuneTokenizer,
+    FugueTokenizer,
 )
 from datasets import TrainDataset
 
@@ -91,7 +91,7 @@ def train(
         model_config.drop_p = 0.1
         tokenizer = CasualPretrainTokenizer(model_config)
     elif mode == "finetune":
-        tokenizer = FinetuneTokenizer(model_config)
+        tokenizer = FugueTokenizer(model_config)
         model_config.drop_p = 0.1
     else:
         raise ValueError
@@ -113,9 +113,9 @@ def train(
     # See https://shorturl.at/AGHZ3
     checkpoint_callback = ModelCheckpoint(
         filename="{epoch}-{train_loss}-{val_loss}",
-        save_top_k=3,
+        save_top_k=5,
         monitor="val_loss",
-        save_weights_only=True,
+        save_weights_only=False,
     )
 
     a100_re = re.compile(r"[aA]100")

@@ -116,6 +116,7 @@ def lazy_casual_sample(
 def sample_maskedlm():
     load_path = ""
     model_config = ModelConfig()
+    gibbs_config = GibbsConfig()
     tokenizer = Tokenizer(model_config)
     model = get_torch_module(load_path).cuda()
     model.eval()
@@ -131,7 +132,10 @@ def sample_maskedlm():
         prompts = json.load(f)
 
     for i, prompt in enumerate(prompts):
-        gibbs_config = GibbsConfig()
+        assert tokenizer.unk_tok not in tokenizer.decode(
+            tokenizer.encode(prompt)
+        ), "unk_tok present in prompt"
+
         p_roll = gibbs_unmask(
             prompt,
             model,

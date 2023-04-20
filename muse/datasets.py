@@ -17,7 +17,7 @@ from models.model import ModelConfig
 from models.tokenizer import (
     Tokenizer,
     MaskedLMPretrainTokenizer,
-    FinetuneTokenizer,
+    FugueTokenizer,
     CasualPretrainTokenizer,
 )
 
@@ -306,7 +306,7 @@ def main():
     print("test", len(dataset.test))
 
     model_config = ModelConfig()
-    tokenizer = MaskedLMPretrainTokenizer(model_config)
+    tokenizer = FugueTokenizer(model_config)
     train_dataset = TrainDataset.from_pianoroll_dataset(
         dataset,
         tokenizer,
@@ -322,7 +322,7 @@ def main():
 
     res = {"train": train_dataset.data, "test": test_dataset.data}
     with open(
-        f"{name}_{model_config.max_seq_len}_{model_config.stride_len}.json",
+        f"data/processed/{name}_{model_config.max_seq_len}_{model_config.stride_len}.json",
         "w",
         encoding="utf-8",
     ) as f:
