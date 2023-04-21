@@ -15,10 +15,10 @@ from models.tokenizer import Tokenizer
 
 @dataclass
 class GibbsConfig:
-    alpha_max = 0.2
-    alpha_min = 0.02
-    num_steps = 500
-    neta = 0.35
+    alpha_max = 0.1
+    alpha_min = 0.01
+    num_steps = 1000
+    neta = 0.25
 
     temp_max = 1.0
     temp_min = 0.65
@@ -125,7 +125,7 @@ def sample_fugue():
     with open("data/prompts.json") as f:
         prompts = json.load(f)
 
-    num_bars = 3
+    num_bars = 4
     for i, prompt in enumerate(prompts):
         assert tokenizer.unk_tok not in tokenizer.decode(
             tokenizer.encode(prompt)
@@ -150,9 +150,12 @@ def sample_fugue():
         )
 
         print(res)
-        p_roll = pianoroll.PianoRoll.from_seq(res)
-        mid = p_roll.to_midi()
-        mid.save(f"samples/test{i+1}.mid")
+        res_p_roll = pianoroll.PianoRoll.from_seq(res)
+        prompt_p_roll = pianoroll.PianoRoll.from_seq(prompt)
+        res_mid = res_p_roll.to_midi()
+        prompt_mid = prompt_p_roll.to_midi()
+        res_mid.save(f"samples/res{i+1}.mid")
+        prompt_mid.save(f"samples/prompt{i+1}.mid")
 
 
 if __name__ == "__main__":
