@@ -17,8 +17,8 @@ from models.tokenizer import Tokenizer
 class GibbsConfig:
     alpha_max = 1.0
     alpha_min = 0.05
-    num_steps = 5
-    neta = 0.7
+    num_steps = 500
+    neta = 0.35
 
     temp_max = 1.0
     temp_min = 0.65
@@ -70,12 +70,10 @@ def gibbs_unmask(
         block_size = max(1, math.trunc(mask_prob * total_to_mask))
         idx = torch.multinomial(uniform_dist, block_size, replacement=False)
         seq[idx] = mask_key
-        logits = (
-            model.forward(seq.reshape(1, -1)) / temp
-        )  # Shape (1, seq_len, vocab_len)
-        probs = torch.nn.functional.softmax(
-            logits[0, idx, :], dim=1
-        )  # Shape (block_size, vocab_len)
+
+        with torch.autocast(device_type="cuda", dtype=torch.float16):
+            logits = model.forward(seq.reshape(1, -1)) / temp
+            probs = torch.nn.functional.softmax(logits[0, idx, :], dim=1)
 
         for i in range(block_size):
             seq[idx[i]] = torch.multinomial(probs[i], 1)
