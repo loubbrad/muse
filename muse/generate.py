@@ -15,8 +15,8 @@ from models.tokenizer import Tokenizer
 
 @dataclass
 class GibbsConfig:
-    alpha_max = 1.0
-    alpha_min = 0.05
+    alpha_max = 0.2
+    alpha_min = 0.02
     num_steps = 500
     neta = 0.35
 
@@ -26,6 +26,7 @@ class GibbsConfig:
 
 def gibbs_unmask(
     seq: list,
+    mask_ids: list,
     model: MuseMaskedLM,
     tokenizer: Tokenizer,
     config: GibbsConfig,
@@ -35,6 +36,7 @@ def gibbs_unmask(
 
     Args:
         seq (list): Sequence to be unmasked.
+        mask_ids: Not fin. ***
         model (MuseMaskedLM): Masked token model to sample from.
         tokenizer (FinetuneTokenizer): Tokenizer corresponding to model.
         config (GibbsConfig): Hyperparameters for Gibbs sampling.
@@ -46,9 +48,9 @@ def gibbs_unmask(
     """
     seq = tokenizer.encode(seq).cuda()
     mask_key = tokenizer.tok_to_id[tokenizer.mask_tok]
-    total_to_mask = torch.sum(seq == mask_key).item()
-    uniform_dist = torch.where(seq == mask_key, 1.0, 0.0)
-    uniform_dist = uniform_dist / torch.linalg.norm(uniform_dist)
+    total_to_mask = sum(mask_ids)
+    dist = torch.tensor(mask_ids, dtype=torch.float)
+    dist = dist / total_to_mask
 
     # Hyperparams
     alpha_max = config.alpha_max
@@ -68,7 +70,7 @@ def gibbs_unmask(
         )
 
         block_size = max(1, math.trunc(mask_prob * total_to_mask))
-        idx = torch.multinomial(uniform_dist, block_size, replacement=False)
+        idx = torch.multinomial(dist, block_size, replacement=False)
         seq[idx] = mask_key
 
         with torch.autocast(device_type="cuda", dtype=torch.float16):
@@ -112,7 +114,7 @@ def lazy_casual_sample(
 
 
 def sample_fugue():
-    load_path = ""
+    load_path = "models/params.ckpt"
     model_config = ModelConfig()
     gibbs_config = GibbsConfig()
     tokenizer = Tokenizer(model_config)
@@ -120,53 +122,35 @@ def sample_fugue():
     model.eval()
 
     # Load prompts
-    with open("data/prompt.json") as f:  ## REVERT
+    with open("data/prompts.json") as f:
         prompts = json.load(f)
 
-    mask_bar_step = 4
-    mask_bar = ["<M>", "<M>", "<M>", "<M>", "<T>"] * (4 * 4 * mask_bar_step)
-
+    num_bars = 3
     for i, prompt in enumerate(prompts):
         assert tokenizer.unk_tok not in tokenizer.decode(
             tokenizer.encode(prompt)
         ), "unk_tok present in prompt"
 
-        # while len(prompt) - len(mask_bar) < model_config.max_seq_len:
-        while True:
-            prompt = [tok for tok in prompt if tok != "<P>"]
+        prompt_len = 5 * 4 * 4 * num_bars
 
-            if len(prompt) + 2 * len(mask_bar) < model_config.max_seq_len:
-                print(len(prompt) + 2 * len(mask_bar))
-                prompt += mask_bar
-                prompt += ["<P>"] * (model_config.max_seq_len - len(prompt))
-                print(len(prompt))
-                assert len(prompt) == model_config.max_seq_len, "len err"
-                prompt = gibbs_unmask(
-                    prompt,
-                    model,
-                    tokenizer,
-                    gibbs_config,
-                    piano_roll=False,
-                )
-            else:  # Last itt with '<E>' instead of '<T>', then break while
-                print(len(prompt) + 2 * len(mask_bar))
-                prompt += mask_bar
-                prompt[-1] = "<E>"
-                prompt += ["<P>"] * (model_config.max_seq_len - len(prompt))
-                print(len(prompt))
-                assert len(prompt) == model_config.max_seq_len, "len err"
-                prompt = gibbs_unmask(
-                    prompt,
-                    model,
-                    tokenizer,
-                    gibbs_config,
-                    piano_roll=False,
-                )
+        def _mask_id_fn(pos: int, tok: str | int) -> int:
+            if pos > prompt_len and (isinstance(tok, int) or tok == "<O>"):
+                return 1
+            else:
+                return 0
 
-                break
+        mask_ids = [_mask_id_fn(i, tok) for i, tok in enumerate(prompt)]
+        res = gibbs_unmask(
+            prompt,
+            mask_ids,
+            model,
+            tokenizer,
+            gibbs_config,
+            piano_roll=False,
+        )
 
-        print(prompt)
-        p_roll = pianoroll.PianoRoll.from_seq(prompt)
+        print(res)
+        p_roll = pianoroll.PianoRoll.from_seq(res)
         mid = p_roll.to_midi()
         mid.save(f"samples/test{i+1}.mid")
 
