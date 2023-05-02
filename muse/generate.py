@@ -15,13 +15,13 @@ from models.tokenizer import Tokenizer
 
 @dataclass
 class GibbsConfig:
-    alpha_max = 0.1
-    alpha_min = 0.01
+    alpha_max = 0.15
+    alpha_min = 0.05
     num_steps = 1000
-    neta = 0.25
+    neta = 0.3
 
     temp_max = 1.0
-    temp_min = 0.65
+    temp_min = 0.6
 
 
 def gibbs_unmask(
@@ -79,8 +79,6 @@ def gibbs_unmask(
 
         for i in range(block_size):
             seq[idx[i]] = torch.multinomial(probs[i], 1)
-
-        print(n)
 
     if piano_roll is True:
         return pianoroll.PianoRoll.from_seq(tokenizer.decode(seq))
@@ -148,8 +146,8 @@ def sample_fugue():
             gibbs_config,
             piano_roll=False,
         )
-
-        print(res)
+        
+        print(f'Done {i+1}/{len(prompts)}')
         res_p_roll = pianoroll.PianoRoll.from_seq(res)
         prompt_p_roll = pianoroll.PianoRoll.from_seq(prompt)
         res_mid = res_p_roll.to_midi()
