@@ -38,7 +38,8 @@ train_dataset = datasets.TrainDataset.from_json(
 
 You can fine-tune MUSE on this dataset my executing the command:
 
-```python muse/train.py --mode maskedlm-pretrain \
+```
+python muse/train.py --mode maskedlm-pretrain \
     -c models/params.ckpt \
     -d my_dataset.json \
     --workers 1 \
